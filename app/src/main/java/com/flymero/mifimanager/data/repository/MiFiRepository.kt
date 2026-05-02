@@ -221,7 +221,7 @@ class MiFiRepository @Inject constructor(
             val body = gson.toJson(mapOf("dev_no" to rechargeNo, "type" to 2))
                 .toRequestBody("application/json".toMediaType())
             val request = Request.Builder()
-                .url("http://kfcl.ruijiadashop.cn/api/card/loginCard")
+                .url("http://bcdc.ruijiadashop.cn/api/card/loginCard")
                 .post(body)
                 .build()
             val response = okHttpClient.newCall(request).execute()

@@ -214,17 +214,55 @@ class MiFiRepository @Inject constructor(
             )))
         }
 
+    private var cachedPlanUrl: String? = null
+
+    private fun getPlanUrl(): String {
+        cachedPlanUrl?.let { return it }
+        val prefs = dataStore.context.getSharedPreferences("mifi_prefs", android.content.Context.MODE_PRIVATE)
+        val saved = prefs.getString("plan_api_url", null)
+        if (saved != null) {
+            cachedPlanUrl = saved
+            return saved
+        }
+        return "http://bcdc.ruijiadashop.cn/api/card/loginCard"
+    }
+
+    private fun savePlanUrl(url: String) {
+        cachedPlanUrl = url
+        dataStore.context.getSharedPreferences("mifi_prefs", android.content.Context.MODE_PRIVATE)
+            .edit().putString("plan_api_url", url).apply()
+    }
+
+    private fun makePlanRequest(url: String, body: okhttp3.RequestBody): okhttp3.Response {
+        val request = Request.Builder().url(url).post(body).build()
+        return okHttpClient.newBuilder()
+            .followRedirects(false)
+            .build()
+            .newCall(request).execute()
+    }
+
     suspend fun getPlanInfo(): Result<PlanLoginResponse> = withContext(Dispatchers.IO) {
         try {
             val rechargeNo = dataStore.getRechargeNo()
             if (rechargeNo.isEmpty()) return@withContext Result.failure(Exception("未设置充值号"))
             val body = gson.toJson(mapOf("dev_no" to rechargeNo, "type" to 2))
                 .toRequestBody("application/json".toMediaType())
-            val request = Request.Builder()
-                .url("http://bcdc.ruijiadashop.cn/api/card/loginCard")
-                .post(body)
-                .build()
-            val response = okHttpClient.newCall(request).execute()
+
+            // Try cached URL first
+            var url = getPlanUrl()
+            var response = makePlanRequest(url, body)
+
+            // If 301/302 redirect, extract new URL and retry
+            if (response.code in 301..302) {
+                val newUrl = response.header("Location")
+                response.close()
+                if (newUrl != null) {
+                    savePlanUrl(newUrl)
+                    url = newUrl
+                    response = makePlanRequest(url, body)
+                }
+            }
+
             val json = response.body?.string() ?: ""
             response.close()
             val result = gson.fromJson(json, PlanLoginResponse::class.java)

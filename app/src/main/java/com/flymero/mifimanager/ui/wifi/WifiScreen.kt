@@ -205,15 +205,12 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
-                    onClick = { viewModel.saveSecurity(ssid, password, selectedMode) },
+                    onClick = {},
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.isSaving
+                    enabled = false
                 ) {
-                    if (state.isSaving) {
-                        CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
-                    }
                     Icon(Icons.Default.Save, contentDescription = null)
-                    Text("  保存网络设置")
+                    Text("  保存网络设置（设备不支持）")
                 }
             }
         }

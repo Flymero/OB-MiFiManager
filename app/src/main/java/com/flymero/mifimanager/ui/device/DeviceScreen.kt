@@ -290,22 +290,25 @@ fun DeviceScreen(
                 ) { Text("修改管理密码") }
 
                 Button(
-                    onClick = { showRestartDialog = true },
+                    onClick = {},
+                    enabled = false,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.RestartAlt, contentDescription = null)
-                    Text("  重启设备")
+                    Text("  重启设备（设备不支持）")
                 }
 
                 Button(
-                    onClick = { showResetDialog = true },
+                    onClick = {},
+                    enabled = false,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
+                        disabledContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.3f),
+                        disabledContentColor = MaterialTheme.colorScheme.onError.copy(alpha = 0.5f)
                     )
                 ) {
                     Icon(Icons.Default.PowerSettingsNew, contentDescription = null)
-                    Text("  恢复出厂设置")
+                    Text("  恢复出厂设置（设备不支持）")
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))

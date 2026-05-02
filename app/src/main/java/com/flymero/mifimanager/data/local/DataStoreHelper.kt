@@ -8,7 +8,7 @@ import javax.inject.Singleton
 
 @Singleton
 class DataStoreHelper @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext val context: Context
 ) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("mifi_prefs", Context.MODE_PRIVATE)

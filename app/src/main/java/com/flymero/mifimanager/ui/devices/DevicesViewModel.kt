@@ -56,6 +56,10 @@ class DevicesViewModel @Inject constructor(
         }
     }
 
+    fun showMessage(message: String) {
+        _state.value = _state.value.copy(actionResult = message)
+    }
+
     fun clearResult() {
         _state.value = _state.value.copy(actionResult = null)
     }

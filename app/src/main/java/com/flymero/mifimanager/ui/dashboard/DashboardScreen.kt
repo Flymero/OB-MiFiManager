@@ -3,49 +3,53 @@ package com.flymero.mifimanager.ui.dashboard
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.NetworkCell
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SignalCellularAlt
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,10 +57,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.flymero.mifimanager.ui.components.GaugeChart
-import com.flymero.mifimanager.ui.components.InfoRow
-import com.flymero.mifimanager.ui.components.StatusCard
-import com.flymero.mifimanager.ui.theme.BatteryFull
+import com.flymero.mifimanager.data.model.PlanInfo
+import com.flymero.mifimanager.ui.components.CardTitle
+import com.flymero.mifimanager.ui.components.KeyValueRow
+import com.flymero.mifimanager.ui.components.MetricItem
+import com.flymero.mifimanager.ui.components.SectionCard
+import com.flymero.mifimanager.ui.components.SectionDivider
+import com.flymero.mifimanager.ui.components.StatusChip
 import com.flymero.mifimanager.ui.theme.BatteryLow
 import com.flymero.mifimanager.ui.theme.BatteryMedium
 import com.flymero.mifimanager.ui.theme.SignalBad
@@ -64,7 +71,13 @@ import com.flymero.mifimanager.ui.theme.SignalExcellent
 import com.flymero.mifimanager.ui.theme.SignalFair
 import com.flymero.mifimanager.ui.theme.SignalGood
 import com.flymero.mifimanager.ui.theme.SignalPoor
+import com.flymero.mifimanager.ui.theme.Success
+import com.flymero.mifimanager.ui.theme.SuccessContainer
+import com.flymero.mifimanager.ui.theme.Warning
+import com.flymero.mifimanager.ui.theme.WarningContainer
+import kotlin.math.ceil
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
@@ -73,8 +86,18 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val stats = state.statisticsInfo
     val plan = state.planInfo
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val sheetState = rememberModalBottomSheetState()
 
-    var showPlanDetail by remember { mutableStateOf(false) }
+    var showPlanDetail by rememberSaveable { mutableStateOf(false) }
+    var showPlanHint by rememberSaveable { mutableStateOf(plan != null) }
+
+    LaunchedEffect(state.refreshMessage) {
+        state.refreshMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearRefreshMessage()
+        }
+    }
 
     if (state.isLoading) {
         Column(
@@ -87,41 +110,126 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
         return
     }
 
-    val isCellularConnected = homepage.connectDisconnect == "cellular"
+    val signalQuality = status.signalQuality.toIntOrNull() ?: 0
+    val signalText = signalLabel(signalQuality)
+    val signalColor = when (signalQuality) {
+        5 -> SignalExcellent
+        4 -> SignalGood
+        3 -> SignalFair
+        2 -> SignalPoor
+        else -> SignalBad
+    }
+    val batteryPercent = status.batteryPercent.toIntOrNull() ?: 0
+    val batteryColor = when {
+        batteryPercent <= 20 -> BatteryLow
+        batteryPercent <= 50 -> BatteryMedium
+        else -> Success
+    }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // Header
-        Text(
-            text = homepage.decodedSsid().ifEmpty { "MiFi" },
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = "${homepage.networkName} | ${status.networkType()}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Plan summary card (clickable)
-        if (plan != null) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showPlanDetail = true },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                ),
-                shape = MaterialTheme.shapes.extraLarge
+    Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = homepage.decodedSsid().ifEmpty { homepage.deviceName.ifEmpty { "MiFi" } },
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "${homepage.networkName} · ${status.networkType()}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        StatusChip(
+                            text = if (homepage.connectDisconnect == "cellular") "已连接" else "未连接",
+                            color = if (homepage.connectDisconnect == "cellular") Success else Warning,
+                            containerColor = if (homepage.connectDisconnect == "cellular") SuccessContainer else WarningContainer
+                        )
+                    }
+                    state.lastUpdatedLabel?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Row {
+                    IconButton(onClick = {}) {
+                        Icon(Icons.Default.Security, contentDescription = "安全")
+                    }
+                    IconButton(onClick = { viewModel.refreshNow() }, enabled = !state.isRefreshing) {
+                        if (state.isRefreshing) {
+                            CircularProgressIndicator(modifier = Modifier.width(18.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                        }
+                    }
+                }
+            }
+
+            SectionCard {
+                CardTitle("设备状态")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    maxItemsInEachRow = 2
+                ) {
+                    MetricItem(
+                        title = "信号强度",
+                        value = "$signalText / ${status.rssi} dBm",
+                        subtitle = "${status.signalQuality} 格",
+                        icon = Icons.Default.SignalCellularAlt,
+                        valueColor = signalColor,
+                        modifier = Modifier.fillMaxWidth(0.48f)
+                    )
+                    MetricItem(
+                        title = "电量",
+                        value = "$batteryPercent%",
+                        subtitle = if (status.batteryCharging == "1") "充电中" else if (batteryPercent <= 20) "低电量" else "状态正常",
+                        icon = Icons.Default.SimCard,
+                        valueColor = batteryColor,
+                        modifier = Modifier.fillMaxWidth(0.48f)
+                    )
+                    MetricItem(
+                        title = "运营商",
+                        value = homepage.networkName.ifEmpty { "未知" },
+                        modifier = Modifier.fillMaxWidth(0.31f)
+                    )
+                    MetricItem(
+                        title = "在线设备",
+                        value = "${status.wifiClientsNum} 台",
+                        modifier = Modifier.fillMaxWidth(0.31f)
+                    )
+                    MetricItem(
+                        title = "频段",
+                        value = state.bandSummary,
+                        modifier = Modifier.fillMaxWidth(0.31f)
+                    )
+                }
+            }
+
+            if (plan != null) {
+                SectionCard(
+                    onClick = {
+                        showPlanHint = false
+                        showPlanDetail = true
+                    }
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -129,26 +237,36 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                     ) {
                         Text(
                             text = plan.packageName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        Text(
-                            text = "到期: ${plan.expiretime}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "查看详情",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Icon(
+                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "到期时间：${plan.expiretime}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     LinearProgressIndicator(
                         progress = { plan.usagePercent() / 100f },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(8.dp),
                         color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f),
+                        trackColor = MaterialTheme.colorScheme.outlineVariant
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -156,278 +274,162 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                         Text(
                             text = "已用 ${plan.usedFormatted()}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = "剩余 ${plan.remainFormatted()} / ${plan.totalFormatted()}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-            }
-        }
-
-        // Cellular toggle card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isCellularConnected)
-                    MaterialTheme.colorScheme.primaryContainer
-                else
-                    MaterialTheme.colorScheme.surfaceContainerLow
-            ),
-            shape = MaterialTheme.shapes.extraLarge
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        Icons.Default.SwapVert,
-                        contentDescription = null,
-                        tint = if (isCellularConnected)
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(28.dp)
-                    )
-                    Column {
-                        Text(
-                            text = "蜂窝网络",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = if (state.cellularConnecting) "切换中..."
-                                else if (isCellularConnected) "已连接"
-                                else "已断开",
-                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    if (showPlanHint) {
+                        Text(
+                            text = "点击套餐卡查看详细用量",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
-                Switch(
-                    checked = isCellularConnected,
-                    onCheckedChange = { viewModel.toggleCellular(it) },
-                    enabled = !state.cellularConnecting,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                )
             }
-        }
 
-        // Signal & Battery gauges
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-            ),
-            shape = MaterialTheme.shapes.extraLarge
-        ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                val signalQuality = status.signalQuality.toIntOrNull() ?: 0
-                val signalColor = when (signalQuality) {
-                    5 -> SignalExcellent
-                    4 -> SignalGood
-                    3 -> SignalFair
-                    2 -> SignalPoor
-                    else -> SignalBad
-                }
-                GaugeChart(
-                    value = signalQuality.toFloat(),
-                    maxValue = 5f,
-                    label = "信号",
-                    color = signalColor
+                MetricItem(
+                    title = "下载速度",
+                    value = status.formattedSpeed(status.rxSpeed),
+                    icon = Icons.Default.ArrowDownward,
+                    modifier = Modifier.weight(1f)
                 )
-
-                val batteryPercent = status.batteryPercent.toIntOrNull() ?: 0
-                val batteryColor = when {
-                    batteryPercent > 60 -> BatteryFull
-                    batteryPercent > 20 -> BatteryMedium
-                    else -> BatteryLow
-                }
-                GaugeChart(
-                    value = batteryPercent.toFloat(),
-                    maxValue = 100f,
-                    label = if (status.batteryCharging == "1") "充电中" else "电量",
-                    unit = "%",
-                    color = batteryColor
+                MetricItem(
+                    title = "上传速度",
+                    value = status.formattedSpeed(status.txSpeed),
+                    icon = Icons.Default.ArrowUpward,
+                    modifier = Modifier.weight(1f)
                 )
             }
+
+            SectionCard {
+                CardTitle("用量统计")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    maxItemsInEachRow = 2
+                ) {
+                    MetricItem(title = "本次下载", value = stats.formattedCurrentTraffic().first, modifier = Modifier.fillMaxWidth(0.48f))
+                    MetricItem(title = "本次上传", value = stats.formattedCurrentTraffic().second, modifier = Modifier.fillMaxWidth(0.48f))
+                    MetricItem(title = "累计下载", value = stats.formattedTotalTraffic().first, modifier = Modifier.fillMaxWidth(0.48f))
+                    MetricItem(title = "累计上传", value = stats.formattedTotalTraffic().second, modifier = Modifier.fillMaxWidth(0.48f))
+                }
+            }
+
+            SectionCard {
+                CardTitle("网络连接")
+                KeyValueRow(label = "WAN IP", value = homepage.wanIp.ifEmpty { "--" })
+                SectionDivider()
+                KeyValueRow(label = "LAN IP", value = homepage.lanIp.ifEmpty { "--" })
+                SectionDivider()
+                KeyValueRow(label = "运行时间", value = formatUptime(state.localUptimeSeconds), valueColor = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
         }
-
-        // Speed
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            StatusCard(
-                title = "下载速率",
-                value = status.formattedSpeed(status.rxSpeed),
-                icon = Icons.Default.ArrowDownward,
-                modifier = Modifier.weight(1f)
-            )
-            StatusCard(
-                title = "上传速率",
-                value = status.formattedSpeed(status.txSpeed),
-                icon = Icons.Default.ArrowUpward,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Traffic
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            StatusCard(
-                title = "本次下载",
-                value = stats.formattedCurrentTraffic().first,
-                icon = Icons.Default.CloudDownload,
-                modifier = Modifier.weight(1f)
-            )
-            StatusCard(
-                title = "本次上传",
-                value = stats.formattedCurrentTraffic().second,
-                icon = Icons.Default.CloudUpload,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Total traffic
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            StatusCard(
-                title = "累计下载",
-                value = stats.formattedTotalTraffic().first,
-                icon = Icons.Default.Storage,
-                modifier = Modifier.weight(1f)
-            )
-            StatusCard(
-                title = "累计上传",
-                value = stats.formattedTotalTraffic().second,
-                icon = Icons.Default.Storage,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Devices & Uptime
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            StatusCard(
-                title = "在线设备",
-                value = "${status.wifiClientsNum} 台",
-                icon = Icons.Default.Devices,
-                modifier = Modifier.weight(1f)
-            )
-            StatusCard(
-                title = "运行时间",
-                value = formatUptime(state.localUptimeSeconds),
-                icon = Icons.Default.AccessTime,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Signal info
-        StatusCard(
-            title = "信号强度",
-            value = "${status.rssi} dBm",
-            icon = Icons.Default.SignalCellularAlt,
-            subtitle = "网络: ${status.networkType()} | RSSI: ${status.rssi}",
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        // Network
-        StatusCard(
-            title = "网络连接",
-            value = homepage.networkName,
-            icon = Icons.Default.NetworkCell,
-            subtitle = "WAN IP: ${homepage.wanIp} | LAN IP: ${homepage.lanIp}",
-            modifier = Modifier.fillMaxWidth()
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
     }
 
-    // Plan detail dialog
     if (showPlanDetail && plan != null) {
-        AlertDialog(
+        ModalBottomSheet(
             onDismissRequest = { showPlanDetail = false },
-            title = { Text("套餐详情") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    InfoRow("套餐名称", plan.packageName)
-                    InfoRow("总流量", plan.totalFormatted())
-                    InfoRow("已使用", plan.usedFormatted())
-                    InfoRow("剩余流量", plan.remainFormatted())
-                    InfoRow("使用比例", "${plan.usagePercent().toInt()}%")
-                    InfoRow("到期时间", plan.expiretime)
-                    InfoRow("账户余额", "¥${plan.balance}")
-                    InfoRow("运营商", plan.operator)
-                    InfoRow("实名状态", plan.realnameStatus)
-                    InfoRow("支付方式", plan.paymentTypeText)
-                    plan.equipment?.let { equip ->
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        // Recharge number with copy button
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "充值号: ${equip.devNo}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            IconButton(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("recharge_no", equip.devNo))
-                                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.ContentCopy,
-                                    contentDescription = "复制",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                        InfoRow("设备状态", if (equip.deviceStatus == 1) "在线" else "离线")
-                        InfoRow("热点名称", equip.hotspotName)
-                        InfoRow("热点密码", equip.hotspotPassword)
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        Text("SIM 卡", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        equip.cardList.forEach { sim ->
-                            InfoRow(
-                                "${sim.operatorText} ${if (sim.isInUse()) "(当前)" else ""}",
-                                sim.realnameStatusText
-                            )
-                        }
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            PackageDetailSheet(plan = plan, context = context, onClose = { showPlanDetail = false })
+        }
+    }
+}
+
+@Composable
+private fun PackageDetailSheet(plan: PlanInfo, context: Context, onClose: () -> Unit) {
+    val daysLeft = plan.daysUntilExpire()
+    val dailyBudget = plan.dailyBudget()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(text = "套餐详情", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(text = plan.packageName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LinearProgressIndicator(
+            progress = { plan.usagePercent() / 100f },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.outlineVariant
+        )
+        KeyValueRow(label = "总流量", value = plan.totalFormatted())
+        KeyValueRow(label = "已使用", value = plan.usedFormatted())
+        KeyValueRow(label = "剩余流量", value = plan.remainFormatted())
+        daysLeft?.let { KeyValueRow(label = "距离到期", value = "$it 天") }
+        dailyBudget?.let { KeyValueRow(label = "预计每日可用", value = it) }
+        KeyValueRow(label = "使用进度", value = "${"%.2f".format(plan.usagePercent())}%")
+        KeyValueRow(label = "到期时间", value = plan.expiretime)
+        plan.equipment?.let { equipment ->
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "充值号", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = equipment.devNo, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    IconButton(onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("recharge_no", equipment.devNo))
+                    }) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = "复制")
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showPlanDetail = false }) { Text("关闭") }
             }
-        )
+        }
+        TextButton(onClick = onClose, modifier = Modifier.align(Alignment.End)) {
+            Text("知道了")
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+    }
+}
+
+private fun signalLabel(level: Int): String = when (level) {
+    5 -> "优秀"
+    4 -> "良好"
+    3 -> "一般"
+    2 -> "较弱"
+    else -> "较差"
+}
+
+private fun PlanInfo.daysUntilExpire(): Int? {
+    val parts = expiretime.split("-")
+    if (parts.size != 3) return null
+    return runCatching {
+        val target = java.time.LocalDate.of(parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
+        val now = java.time.LocalDate.now()
+        val days = java.time.temporal.ChronoUnit.DAYS.between(now, target).toInt()
+        days.coerceAtLeast(0)
+    }.getOrNull()
+}
+
+private fun PlanInfo.dailyBudget(): String? {
+    val days = daysUntilExpire() ?: return null
+    if (days == 0) return remainFormatted()
+    val remainPerDayMb = remainAmount / days
+    return when {
+        remainPerDayMb >= 1024 -> "%.2f GB/天".format(remainPerDayMb / 1024)
+        else -> "%.0f MB/天".format(ceil(remainPerDayMb))
     }
 }
 
@@ -435,10 +437,9 @@ private fun formatUptime(totalSeconds: Long): String {
     val days = totalSeconds / 86400
     val hours = (totalSeconds % 86400) / 3600
     val minutes = (totalSeconds % 3600) / 60
-    val secs = totalSeconds % 60
     return buildString {
         if (days > 0) append("${days}天 ")
         if (hours > 0) append("${hours}时 ")
-        append("${minutes}分 ${secs}秒")
+        append("${minutes}分")
     }
 }

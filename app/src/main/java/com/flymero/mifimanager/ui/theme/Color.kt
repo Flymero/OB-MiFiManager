@@ -2,26 +2,52 @@ package com.flymero.mifimanager.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Blue80 = Color(0xFFB3D1FF)
-val BlueGrey80 = Color(0xFFBCC7D4)
-val Teal80 = Color(0xFFA0D5D0)
+val PrimaryLight = Color(0xFF2F5DA8)
+val OnPrimaryLight = Color(0xFFFFFFFF)
+val PrimaryContainerLight = Color(0xFFD9E3FF)
+val OnPrimaryContainerLight = Color(0xFF16325F)
+val SecondaryContainerLight = Color(0xFFE4EBFF)
+val SurfaceLight = Color(0xFFFFFFFF)
+val BackgroundLight = Color(0xFFF7F8FC)
+val SurfaceContainerLight = Color(0xFFFFFFFF)
+val SurfaceContainerLowLight = Color(0xFFFDFDFF)
+val SurfaceVariantLight = Color(0xFFF1F4FA)
+val OutlineVariantLight = Color(0xFFE1E5EF)
+val TextPrimaryLight = Color(0xFF111827)
+val TextSecondaryLight = Color(0xFF5F6673)
+val TextTertiaryLight = Color(0xFF8A90A0)
 
-val Blue40 = Color(0xFF1565C0)
-val BlueGrey40 = Color(0xFF546E7A)
-val Teal40 = Color(0xFF00897B)
+val PrimaryDark = Color(0xFFB3C7FF)
+val OnPrimaryDark = Color(0xFF002B6B)
+val PrimaryContainerDark = Color(0xFF16325F)
+val OnPrimaryContainerDark = Color(0xFFD9E3FF)
+val SecondaryContainerDark = Color(0xFF24324D)
+val SurfaceDark = Color(0xFF11131A)
+val BackgroundDark = Color(0xFF0D0F14)
+val SurfaceContainerDark = Color(0xFF171A22)
+val SurfaceContainerLowDark = Color(0xFF141821)
+val SurfaceVariantDark = Color(0xFF222734)
+val OutlineVariantDark = Color(0xFF3B4252)
+val TextPrimaryDark = Color(0xFFF3F4F6)
+val TextSecondaryDark = Color(0xFFB4BCCB)
+val TextTertiaryDark = Color(0xFF8A94A6)
 
-val SignalExcellent = Color(0xFF4CAF50)
-val SignalGood = Color(0xFF8BC34A)
-val SignalFair = Color(0xFFFFC107)
-val SignalPoor = Color(0xFFFF9800)
-val SignalBad = Color(0xFFF44336)
+val Success = Color(0xFF1E8E3E)
+val SuccessContainer = Color(0xFFE6F4EA)
+val Warning = Color(0xFFF29900)
+val WarningContainer = Color(0xFFFFF4E1)
+val ErrorLight = Color(0xFFD93025)
+val ErrorContainerLight = Color(0xFFFDECEA)
 
-val BatteryFull = Color(0xFF4CAF50)
-val BatteryMedium = Color(0xFFFFC107)
-val BatteryLow = Color(0xFFF44336)
+val SignalExcellent = Success
+val SignalGood = Color(0xFF49A35F)
+val SignalFair = Warning
+val SignalPoor = Color(0xFFE67E22)
+val SignalBad = ErrorLight
 
-val SpeedUpload = Color(0xFF42A5F5)
-val SpeedDownload = Color(0xFF66BB6A)
+val BatteryFull = Success
+val BatteryMedium = Warning
+val BatteryLow = ErrorLight
 
-val CardBackground = Color(0xFFF5F7FA)
-val CardBackgroundDark = Color(0xFF1E2A3A)
+val SpeedUpload = PrimaryLight
+val SpeedDownload = Success

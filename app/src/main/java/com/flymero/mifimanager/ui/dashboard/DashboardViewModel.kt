@@ -2,6 +2,7 @@ package com.flymero.mifimanager.ui.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.flymero.mifimanager.data.model.EngineeringInfo
 import com.flymero.mifimanager.data.model.HomepageInfo
 import com.flymero.mifimanager.data.model.PlanInfo
 import com.flymero.mifimanager.data.model.StatisticsInfo
@@ -12,6 +13,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 data class DashboardState(
@@ -19,10 +23,15 @@ data class DashboardState(
     val homepageInfo: HomepageInfo = HomepageInfo(),
     val statisticsInfo: StatisticsInfo = StatisticsInfo(),
     val planInfo: PlanInfo? = null,
+    val engineeringInfo: EngineeringInfo = EngineeringInfo(),
     val isLoading: Boolean = true,
     val error: String? = null,
     val localUptimeSeconds: Long = 0,
-    val cellularConnecting: Boolean = false
+    val cellularConnecting: Boolean = false,
+    val isRefreshing: Boolean = false,
+    val refreshMessage: String? = null,
+    val lastUpdatedLabel: String? = null,
+    val bandSummary: String = "--"
 )
 
 @HiltViewModel
@@ -34,7 +43,6 @@ class DashboardViewModel @Inject constructor(
     val state: StateFlow<DashboardState> = _state
 
     private var lastApiUptime: Long = 0
-    private var lastUptimeTimestamp: Long = 0
 
     init {
         startStatusPolling()
@@ -69,6 +77,7 @@ class DashboardViewModel @Inject constructor(
                 refreshHomepage()
                 refreshStatistics()
                 refreshPlan()
+                refreshEngineering()
                 delay(5000)
             }
         }
@@ -81,7 +90,6 @@ class DashboardViewModel @Inject constructor(
         val apiUptime = status.runSeconds.toLongOrNull() ?: 0
         if (apiUptime != lastApiUptime) {
             lastApiUptime = apiUptime
-            lastUptimeTimestamp = System.currentTimeMillis()
             _state.value = _state.value.copy(localUptimeSeconds = apiUptime)
         }
 
@@ -94,22 +102,54 @@ class DashboardViewModel @Inject constructor(
 
     private suspend fun refreshHomepage() {
         val result = repository.getHomepageInfo()
-        _state.value = _state.value.copy(
-            homepageInfo = result.getOrDefault(_state.value.homepageInfo)
-        )
+        _state.value = _state.value.copy(homepageInfo = result.getOrDefault(_state.value.homepageInfo))
     }
 
     private suspend fun refreshStatistics() {
         val result = repository.getStatisticsInfo()
-        _state.value = _state.value.copy(
-            statisticsInfo = result.getOrDefault(_state.value.statisticsInfo)
-        )
+        _state.value = _state.value.copy(statisticsInfo = result.getOrDefault(_state.value.statisticsInfo))
     }
 
     private suspend fun refreshPlan() {
         val result = repository.getPlanInfo()
         if (result.isSuccess && result.getOrNull()?.isSuccess == true) {
             _state.value = _state.value.copy(planInfo = result.getOrNull()?.data)
+        }
+    }
+
+    private suspend fun refreshEngineering() {
+        val result = repository.getEngineeringInfo()
+        val engineering = result.getOrDefault(_state.value.engineeringInfo)
+        val lte = engineering.lte
+        val bandSummary = if (lte != null) {
+            "Band ${lte.band} · ${lte.bandwidthMhz()}"
+        } else {
+            "--"
+        }
+        _state.value = _state.value.copy(engineeringInfo = engineering, bandSummary = bandSummary)
+    }
+
+    fun refreshNow() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isRefreshing = true)
+            runCatching {
+                refreshStatus()
+                refreshHomepage()
+                refreshStatistics()
+                refreshPlan()
+                refreshEngineering()
+            }.onSuccess {
+                _state.value = _state.value.copy(
+                    isRefreshing = false,
+                    refreshMessage = "已刷新",
+                    lastUpdatedLabel = "更新于 ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())}"
+                )
+            }.onFailure {
+                _state.value = _state.value.copy(
+                    isRefreshing = false,
+                    refreshMessage = "更新失败，点按重试"
+                )
+            }
         }
     }
 
@@ -121,5 +161,9 @@ class DashboardViewModel @Inject constructor(
             refreshHomepage()
             _state.value = _state.value.copy(cellularConnecting = false)
         }
+    }
+
+    fun clearRefreshMessage() {
+        _state.value = _state.value.copy(refreshMessage = null)
     }
 }

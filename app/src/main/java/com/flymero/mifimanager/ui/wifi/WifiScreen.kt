@@ -1,5 +1,6 @@
 package com.flymero.mifimanager.ui.wifi
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
@@ -14,10 +16,11 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +28,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,6 +62,7 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
     var selectedMode by remember(state.securityInfo) { mutableStateOf(state.securityInfo.mode) }
     var wifiEnabled by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.wlanEnable == "1") }
     var apIsolate by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.apIsolate == "1") }
+    var expanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.saveResult) {
         state.saveResult?.let {
@@ -75,6 +80,8 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
         return
     }
 
+    val modes = listOf("Mixed", "WPA2-PSK", "WPA-PSK", "WPA3-SAE", "WPA2-WPA3")
+
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -83,7 +90,11 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(text = "WiFi 管理", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = "WiFi 管理",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold
+            )
 
             SectionCard {
                 Row(
@@ -91,9 +102,17 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text("WiFi 开关", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("控制无线网络广播", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "WiFi 开关",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "控制无线网络广播",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     Switch(checked = wifiEnabled, onCheckedChange = { wifiEnabled = it })
                 }
@@ -101,69 +120,93 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
 
             SectionCard {
                 CardTitle("网络设置")
-                OutlinedTextField(
-                    value = ssid,
-                    onValueChange = { ssid = it },
-                    label = { Text("SSID") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("密码") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = null)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = ssid,
+                        onValueChange = { ssid = it },
+                        label = { Text("SSID（网络名称）") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.large
+                    )
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("密码") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.large,
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = null
+                                )
+                            }
+                        }
+                    )
+                    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                        OutlinedTextField(
+                            value = selectedMode,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("加密方式") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                            shape = MaterialTheme.shapes.large
+                        )
+                        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            modes.forEach { mode ->
+                                DropdownMenuItem(
+                                    text = { Text(mode) },
+                                    onClick = {
+                                        selectedMode = mode
+                                        expanded = false
+                                    }
+                                )
+                            }
                         }
                     }
-                )
-                val modes = listOf("Mixed", "WPA2-PSK", "WPA-PSK", "WPA3-SAE", "WPA2-WPA3")
-                var expanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-                    OutlinedTextField(
-                        value = selectedMode,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("加密方式") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                    )
-                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        modes.forEach { mode ->
-                            DropdownMenuItem(
-                                text = { Text(mode) },
-                                onClick = {
-                                    selectedMode = mode
-                                    expanded = false
-                                }
+
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "当前设备固件可能不支持修改 WiFi 设置",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            text = "若固件不支持修改，保存后会显示失败提示",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
+
                     Button(
                         onClick = { viewModel.saveSecurity(ssid, password, selectedMode) },
-                        enabled = !state.isSaving
+                        enabled = !state.isSaving,
+                        modifier = Modifier.align(Alignment.End),
+                        shape = CircleShape
                     ) {
                         if (state.isSaving) {
-                            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.padding(end = 8.dp))
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
                         }
                         Text("保存设置")
                     }
@@ -187,7 +230,11 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("AP 隔离", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = "AP 隔离",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Switch(checked = apIsolate, onCheckedChange = { apIsolate = it })
                 }
                 Button(
@@ -200,12 +247,16 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                         )
                     },
                     enabled = !state.isSaving,
-                    modifier = Modifier.align(Alignment.End)
+                    modifier = Modifier.align(Alignment.End),
+                    shape = CircleShape
                 ) {
                     Text("保存高级设置")
                 }
             }
         }
-        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
     }
 }

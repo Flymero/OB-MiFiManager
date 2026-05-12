@@ -3,26 +3,31 @@ package com.flymero.mifimanager.ui.devices
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -74,19 +80,20 @@ fun DevicesScreen(
     val blockedDevices = allClients.filter { it.status == "2" }
     val offlineDevices = allClients.filter { it.status == "0" }
     val historyDevices = state.deviceInfo.knownDevicesList
+        .filter { history -> allClients.none { it.mac.equals(history.mac, ignoreCase = true) } }
 
     val tabTitles = listOf(
+        "全部 ${allClients.size}",
         "在线设备 ${onlineDevices.size}",
         "已屏蔽 ${blockedDevices.size}",
-        "离线设备 ${offlineDevices.size}",
-        "历史设备 ${historyDevices.size}"
+        "离线设备 ${offlineDevices.size}"
     )
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -95,45 +102,147 @@ fun DevicesScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(text = "设备管理", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-                Row {
-                    IconButton(onClick = onNavigateToAuth) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(
+                        onClick = onNavigateToAuth,
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                        )
+                    ) {
                         Icon(Icons.Default.Security, contentDescription = "上网认证")
                     }
-                    IconButton(onClick = { viewModel.refresh() }) {
+                    IconButton(
+                        onClick = { viewModel.refresh() },
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                        )
+                    ) {
                         Icon(Icons.Default.Refresh, contentDescription = "刷新")
                     }
                 }
             }
 
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 tabTitles.forEachIndexed { index, title ->
-                    SegmentedButton(
+                    DeviceCategoryTab(
+                        title = title,
                         selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = tabTitles.size),
-                        label = { Text(title, style = MaterialTheme.typography.labelSmall) }
+                        onClick = { selectedTab = index }
                     )
                 }
             }
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val sectionTitle = when (selectedTab) {
+                0 -> "全部设备"
+                1 -> "在线设备"
+                2 -> "已屏蔽设备"
+                else -> "离线设备"
+            }
+
+            Text(
+                text = sectionTitle,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 when (selectedTab) {
-                    0 -> items(onlineDevices) { device ->
+                    0 -> {
+                        items(onlineDevices) { device ->
+                            ClientDeviceItem(device, "在线", Success, false, context, viewModel)
+                        }
+                        items(blockedDevices) { device ->
+                            ClientDeviceItem(device, "已屏蔽", ErrorLight, true, context, viewModel)
+                        }
+                        items(offlineDevices) { device ->
+                            ClientDeviceItem(device, "离线", MaterialTheme.colorScheme.onSurfaceVariant, false, context, viewModel)
+                        }
+                    }
+                    1 -> items(onlineDevices) { device ->
                         ClientDeviceItem(device, "在线", Success, false, context, viewModel)
                     }
-                    1 -> items(blockedDevices) { device ->
+                    2 -> items(blockedDevices) { device ->
                         ClientDeviceItem(device, "已屏蔽", ErrorLight, true, context, viewModel)
                     }
-                    2 -> items(offlineDevices) { device ->
+                    3 -> items(offlineDevices) { device ->
                         ClientDeviceItem(device, "离线", MaterialTheme.colorScheme.onSurfaceVariant, false, context, viewModel)
                     }
-                    3 -> items(historyDevices) { device ->
+                }
+
+                if (selectedTab == 0 && historyDevices.isNotEmpty()) {
+                    item {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)
+                        ) {
+                            Text(
+                                text = "历史设备",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "以下设备当前未在线，仅保留历史记录。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    items(historyDevices) { device ->
                         HistoryDeviceItem(device)
                     }
                 }
             }
         }
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+    }
+}
+
+
+@Composable
+private fun DeviceCategoryTab(
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
+        Box(
+            modifier = Modifier
+                .height(3.dp)
+                .fillMaxWidth()
+                .background(
+                    color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    shape = CircleShape
+                )
+        ) {
+            if (!selected) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Transparent, CircleShape)
+                )
+            }
+        }
     }
 }
 

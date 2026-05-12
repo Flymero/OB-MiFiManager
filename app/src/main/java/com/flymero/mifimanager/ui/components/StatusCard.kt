@@ -24,6 +24,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -250,7 +251,12 @@ fun DeviceListItem(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = if (isBlocked) ErrorContainerLight else MaterialTheme.colorScheme.surfaceVariant
+        color = if (isBlocked) ErrorContainerLight else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            1.dp,
+            if (isBlocked) MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+        )
     ) {
         Row(
             modifier = Modifier
@@ -261,14 +267,18 @@ fun DeviceListItem(
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .background(SuccessContainer.copy(alpha = 0.6f), CircleShape),
+                    .size(44.dp)
+                    .background(
+                        if (isBlocked) ErrorContainerLight.copy(alpha = 0.85f) else SuccessContainer.copy(alpha = 0.7f),
+                        CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = name.take(1).uppercase(),
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
+                    color = if (isBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleSmall
                 )
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -296,11 +306,16 @@ fun DeviceListItem(
                 text = statusText,
                 style = MaterialTheme.typography.labelMedium,
                 color = statusColor,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.SemiBold
             )
             if (menuItems.isNotEmpty()) {
                 Box {
-                    IconButton(onClick = { expanded = true }) {
+                    IconButton(
+                        onClick = { expanded = true },
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                        )
+                    ) {
                         Icon(Icons.Default.MoreVert, contentDescription = "更多")
                     }
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

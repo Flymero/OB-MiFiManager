@@ -1,11 +1,12 @@
 package com.flymero.mifimanager.ui.signal
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -17,7 +18,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.flymero.mifimanager.data.model.LteInfo
@@ -25,13 +28,11 @@ import com.flymero.mifimanager.ui.components.CardTitle
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.components.SectionCard
 import com.flymero.mifimanager.ui.components.SectionDivider
-import com.flymero.mifimanager.ui.components.StatusChip
 import com.flymero.mifimanager.ui.theme.SignalExcellent
 import com.flymero.mifimanager.ui.theme.SuccessContainer
 import com.flymero.mifimanager.ui.theme.Warning
 import com.flymero.mifimanager.ui.theme.WarningContainer
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
@@ -48,6 +49,8 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
     val lte = state.engineeringInfo.lte ?: return
     val score = lte.signalScore()
     val qualityText = lte.qualityText(score)
+    val qualityColor = if (score >= 75) SignalExcellent else Warning
+    val qualityContainer = if (score >= 75) SuccessContainer else WarningContainer
 
     Column(
         modifier = Modifier
@@ -63,29 +66,48 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
 
         SectionCard {
             CardTitle("信号质量")
-            StatusChip(
-                text = qualityText,
-                color = if (score >= 75) SignalExcellent else Warning,
-                containerColor = if (score >= 75) SuccessContainer else WarningContainer
-            )
-            Text(
-                text = "综合评分 ${score}/100",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            LinearProgressIndicator(
-                progress = { score / 100f },
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.outlineVariant
-            )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SignalMetricChip("RSRP", "${lte.rsrp} dBm")
-                SignalMetricChip("SINR", "${lte.sinr} dB")
-                SignalMetricChip("RSRQ", "${lte.rsrq} dB")
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = qualityText,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = qualityColor
+                )
+                Text(
+                    text = "综合评分：${score}/100",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                LinearProgressIndicator(
+                    progress = { score / 100f },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    color = qualityColor,
+                    trackColor = MaterialTheme.colorScheme.outlineVariant
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SignalMetricCard(
+                    label = "RSRP",
+                    value = "${lte.rsrp} dBm",
+                    valueColor = SignalExcellent,
+                    modifier = Modifier.weight(1f)
+                )
+                SignalMetricCard(
+                    label = "SINR",
+                    value = "${lte.sinr} dB",
+                    valueColor = SignalExcellent,
+                    containerColor = qualityContainer,
+                    borderColor = qualityContainer,
+                    modifier = Modifier.weight(1f)
+                )
+                SignalMetricCard(
+                    label = "RSRQ",
+                    value = "${lte.rsrq} dB",
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
 
@@ -126,17 +148,37 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun SignalMetricChip(label: String, value: String) {
+private fun SignalMetricCard(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    borderColor: Color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+) {
     Surface(
+        modifier = modifier,
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceVariant
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(text = value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = valueColor,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

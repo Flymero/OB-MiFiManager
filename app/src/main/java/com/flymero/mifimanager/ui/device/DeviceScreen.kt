@@ -1,5 +1,6 @@
 package com.flymero.mifimanager.ui.device
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,8 +11,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,7 +30,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.material3.OutlinedTextField
 import com.flymero.mifimanager.ui.components.CardTitle
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.components.SectionCard
@@ -80,7 +82,11 @@ fun DeviceScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(text = "管理", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = "管理",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold
+            )
 
             SectionCard {
                 CardTitle("设备信息")
@@ -130,18 +136,43 @@ fun DeviceScreen(
                 SectionDivider()
                 KeyValueRow("重启设备", "执行", showChevron = true, onClick = { showRestartDialog = true })
                 SectionDivider()
-                KeyValueRow(
-                    "恢复出厂设置",
-                    "危险操作",
-                    showChevron = true,
-                    valueColor = MaterialTheme.colorScheme.error,
-                    onClick = { showResetDialog = true }
-                )
-                SectionDivider()
                 KeyValueRow("退出登录", "退出", showChevron = true, onClick = { viewModel.logout() })
             }
+
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.24f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "危险操作",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = "恢复出厂设置将清除所有配置并重启设备。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    KeyValueRow(
+                        label = "恢复出厂设置",
+                        value = "执行",
+                        showChevron = true,
+                        valueColor = MaterialTheme.colorScheme.error,
+                        onClick = { showResetDialog = true }
+                    )
+                }
+            }
         }
-        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
     }
 
     if (showRestartDialog) {

@@ -3,11 +3,11 @@ package com.flymero.mifimanager.ui.dashboard
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,10 +17,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.BatteryAlert
@@ -29,11 +29,9 @@ import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.NetworkCell
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SignalCellularAlt
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -58,14 +56,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.flymero.mifimanager.data.model.PlanInfo
 import com.flymero.mifimanager.ui.components.CardTitle
 import com.flymero.mifimanager.ui.components.KeyValueRow
-import com.flymero.mifimanager.ui.components.MetricItem
 import com.flymero.mifimanager.ui.components.SectionCard
 import com.flymero.mifimanager.ui.components.SectionDivider
 import com.flymero.mifimanager.ui.components.StatusChip
@@ -76,13 +75,15 @@ import com.flymero.mifimanager.ui.theme.SignalExcellent
 import com.flymero.mifimanager.ui.theme.SignalFair
 import com.flymero.mifimanager.ui.theme.SignalGood
 import com.flymero.mifimanager.ui.theme.SignalPoor
+import com.flymero.mifimanager.ui.theme.SpeedDownload
+import com.flymero.mifimanager.ui.theme.SpeedUpload
 import com.flymero.mifimanager.ui.theme.Success
 import com.flymero.mifimanager.ui.theme.SuccessContainer
 import com.flymero.mifimanager.ui.theme.Warning
 import com.flymero.mifimanager.ui.theme.WarningContainer
 import kotlin.math.ceil
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
@@ -136,7 +137,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -189,57 +190,61 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
 
             SectionCard {
                 CardTitle("设备状态")
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    maxItemsInEachRow = 2
-                ) {
-                    val batteryIcon = when {
-                        status.batteryCharging == "1" -> Icons.Default.BatteryChargingFull
-                        batteryPercent <= 20 -> Icons.Default.BatteryAlert
-                        else -> Icons.Default.BatteryFull
+                val batteryIcon = when {
+                    status.batteryCharging == "1" -> Icons.Default.BatteryChargingFull
+                    batteryPercent <= 20 -> Icons.Default.BatteryAlert
+                    else -> Icons.Default.BatteryFull
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DashboardMetricCard(
+                            title = "信号强度",
+                            primary = signalText,
+                            secondary = "${status.rssi} dBm",
+                            footnote = "${status.signalQuality} 格",
+                            icon = Icons.Default.SignalCellularAlt,
+                            accentColor = signalColor,
+                            modifier = Modifier.weight(1f)
+                        )
+                        DashboardMetricCard(
+                            title = "电量",
+                            primary = "$batteryPercent%",
+                            secondary = if (status.batteryCharging == "1") "充电中" else if (batteryPercent <= 20) "低电量" else "状态正常",
+                            icon = batteryIcon,
+                            accentColor = batteryColor,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-
-                    MetricItem(
-                        title = "信号强度",
-                        value = "$signalText / ${status.rssi} dBm",
-                        subtitle = "${status.signalQuality} 格",
-                        icon = Icons.Default.SignalCellularAlt,
-                        valueColor = signalColor,
-                        modifier = Modifier.fillMaxWidth(0.48f)
-                    )
-                    MetricItem(
-                        title = "电量",
-                        value = "$batteryPercent%",
-                        subtitle = if (status.batteryCharging == "1") "充电中" else if (batteryPercent <= 20) "低电量" else "状态正常",
-                        icon = batteryIcon,
-                        valueColor = batteryColor,
-                        modifier = Modifier.fillMaxWidth(0.48f)
-                    )
-                    MetricItem(
-                        title = "运营商",
-                        value = homepage.networkName.ifEmpty { "未知" },
-                        icon = Icons.Default.Language,
-                        modifier = Modifier.fillMaxWidth(0.48f)
-                    )
-                    MetricItem(
-                        title = "在线设备",
-                        value = "${status.wifiClientsNum} 台",
-                        icon = Icons.Default.Devices,
-                        modifier = Modifier.fillMaxWidth(0.48f)
-                    )
-                    MetricItem(
-                        title = "下载速率",
-                        value = status.formattedSpeed(status.rxSpeed),
-                        icon = Icons.Default.ArrowDownward,
-                        modifier = Modifier.fillMaxWidth(0.48f)
-                    )
-                    MetricItem(
-                        title = "上传速率",
-                        value = status.formattedSpeed(status.txSpeed),
-                        icon = Icons.Default.ArrowUpward,
-                        modifier = Modifier.fillMaxWidth(0.48f)
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DashboardMetricCard(
+                            title = "运营商",
+                            primary = homepage.networkName.ifEmpty { "未知" },
+                            icon = Icons.Default.Language,
+                            modifier = Modifier.weight(1f)
+                        )
+                        DashboardMetricCard(
+                            title = "在线设备",
+                            primary = "${status.wifiClientsNum} 台",
+                            icon = Icons.Default.Devices,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DashboardMetricCard(
+                            title = "下载速率",
+                            primary = status.formattedSpeed(status.rxSpeed),
+                            icon = Icons.Default.ArrowDownward,
+                            accentColor = SpeedDownload,
+                            modifier = Modifier.weight(1f)
+                        )
+                        DashboardMetricCard(
+                            title = "上传速率",
+                            primary = status.formattedSpeed(status.txSpeed),
+                            icon = Icons.Default.ArrowUpward,
+                            accentColor = SpeedUpload,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
 
@@ -253,13 +258,13 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
                                 text = plan.packageName,
                                 style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
@@ -285,13 +290,14 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                         progress = { plan.usagePercent() / 100f },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(8.dp),
+                            .height(7.dp),
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.outlineVariant
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "已用 ${plan.usedFormatted()}",
@@ -316,15 +322,31 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
 
             SectionCard {
                 CardTitle("用量统计")
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    maxItemsInEachRow = 2
-                ) {
-                    MetricItem(title = "本次下载", value = stats.formattedCurrentTraffic().first, modifier = Modifier.fillMaxWidth(0.48f))
-                    MetricItem(title = "本次上传", value = stats.formattedCurrentTraffic().second, modifier = Modifier.fillMaxWidth(0.48f))
-                    MetricItem(title = "累计下载", value = stats.formattedTotalTraffic().first, modifier = Modifier.fillMaxWidth(0.48f))
-                    MetricItem(title = "累计上传", value = stats.formattedTotalTraffic().second, modifier = Modifier.fillMaxWidth(0.48f))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DashboardStatCard(
+                            title = "本次下载",
+                            value = stats.formattedCurrentTraffic().first,
+                            modifier = Modifier.weight(1f)
+                        )
+                        DashboardStatCard(
+                            title = "本次上传",
+                            value = stats.formattedCurrentTraffic().second,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        DashboardStatCard(
+                            title = "累计下载",
+                            value = stats.formattedTotalTraffic().first,
+                            modifier = Modifier.weight(1f)
+                        )
+                        DashboardStatCard(
+                            title = "累计上传",
+                            value = stats.formattedTotalTraffic().second,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
 
@@ -358,6 +380,116 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
 }
 
 @Composable
+private fun DashboardMetricCard(
+    title: String,
+    primary: String,
+    modifier: Modifier = Modifier,
+    secondary: String? = null,
+    footnote: String? = null,
+    accentColor: Color = MaterialTheme.colorScheme.onSurface,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
+) {
+    Surface(
+        modifier = modifier.height(122.dp),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                icon?.let {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(accentColor.copy(alpha = 0.12f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = it,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    text = primary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = accentColor,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                secondary?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            if (!footnote.isNullOrBlank()) {
+                Text(
+                    text = footnote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardStatCard(
+    title: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+
+@Composable
 private fun PackageDetailSheet(plan: PlanInfo, context: Context, onClose: () -> Unit) {
     val daysLeft = plan.daysUntilExpire()
     val dailyBudget = plan.dailyBudget()
@@ -365,56 +497,164 @@ private fun PackageDetailSheet(plan: PlanInfo, context: Context, onClose: () -> 
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(text = "套餐详情", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        Column {
-            Text(text = plan.packageName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(text = "到期时间：${plan.expiretime}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        LinearProgressIndicator(
-            progress = { plan.usagePercent() / 100f },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp),
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.outlineVariant
+        Text(
+            text = "套餐详情",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold
         )
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            KeyValueRow(label = "总流量", value = plan.totalFormatted())
-            KeyValueRow(label = "已使用", value = plan.usedFormatted())
-            KeyValueRow(label = "剩余流量", value = plan.remainFormatted())
-            daysLeft?.let { KeyValueRow(label = "距离到期", value = "$it 天") }
-            dailyBudget?.let { KeyValueRow(label = "预计每日可用", value = it) }
-            KeyValueRow(label = "使用进度", value = "${"%.2f".format(plan.usagePercent())}%")
-            KeyValueRow(label = "到期时间", value = plan.expiretime)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = plan.packageName,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "到期时间：${plan.expiretime}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
-        plan.equipment?.let { equipment ->
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(text = "充值号", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = equipment.devNo, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    IconButton(onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("recharge_no", equipment.devNo))
-                    }) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = "复制", modifier = Modifier.size(18.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "${"%.2f".format(plan.usagePercent())}%",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "已使用",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "剩余 ${plan.remainFormatted()}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "总流量 ${plan.totalFormatted()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                LinearProgressIndicator(
+                    progress = { plan.usagePercent() / 100f },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.outlineVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "已用 ${plan.usedFormatted()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "剩余 ${plan.remainFormatted()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                KeyValueRow(label = "总流量", value = plan.totalFormatted())
+                SectionDivider()
+                KeyValueRow(label = "已使用", value = plan.usedFormatted())
+                SectionDivider()
+                KeyValueRow(label = "剩余流量", value = plan.remainFormatted())
+                daysLeft?.let {
+                    SectionDivider()
+                    KeyValueRow(label = "距离到期", value = "$it 天")
+                }
+                dailyBudget?.let {
+                    SectionDivider()
+                    KeyValueRow(label = "预计每日可用", value = it)
+                }
+                SectionDivider()
+                KeyValueRow(label = "使用进度", value = "${"%.2f".format(plan.usagePercent())}%")
+                SectionDivider()
+                KeyValueRow(label = "到期时间", value = plan.expiretime)
+                plan.equipment?.let { equipment ->
+                    SectionDivider()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "充值号",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = equipment.devNo,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            IconButton(onClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("recharge_no", equipment.devNo))
+                            }) {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = "复制",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
+
         TextButton(
             onClick = onClose,
             modifier = Modifier.align(Alignment.End)
         ) {
             Text("知道了", color = MaterialTheme.colorScheme.primary)
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
@@ -425,7 +665,6 @@ private fun signalLabel(level: Int): String = when (level) {
     2 -> "较弱"
     else -> "较差"
 }
-
 private fun PlanInfo.daysUntilExpire(): Int? {
     val parts = expiretime.split("-")
     if (parts.size != 3) return null

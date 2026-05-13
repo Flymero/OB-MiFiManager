@@ -43,6 +43,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -352,6 +353,30 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
 
             SectionCard {
                 CardTitle("网络连接")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = "蜂窝网络",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (state.cellularConnecting) "切换中..." else if (homepage.connectDisconnect == "cellular") "已连接" else "已断开",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = homepage.connectDisconnect == "cellular",
+                        onCheckedChange = { viewModel.toggleCellular(it) },
+                        enabled = !state.cellularConnecting
+                    )
+                }
+                SectionDivider()
                 KeyValueRow(label = "频段", value = state.bandSummary)
                 SectionDivider()
                 KeyValueRow(label = "WAN IP", value = homepage.wanIp.ifEmpty { "--" })
@@ -612,7 +637,7 @@ private fun PackageDetailSheet(plan: PlanInfo, context: Context, onClose: () -> 
                 KeyValueRow(label = "使用进度", value = "${"%.2f".format(plan.usagePercent())}%")
                 SectionDivider()
                 KeyValueRow(label = "到期时间", value = plan.expiretime)
-                plan.equipment?.let { equipment ->
+                plan.equipment?.takeIf { it.devNo.isNotBlank() }?.let { equipment ->
                     SectionDivider()
                     Row(
                         modifier = Modifier
@@ -643,6 +668,64 @@ private fun PackageDetailSheet(plan: PlanInfo, context: Context, onClose: () -> 
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        val planRows = buildList {
+            plan.balance.takeIf { it.isNotBlank() }?.let { add("账户余额" to "¥$it") }
+            plan.operator.takeIf { it.isNotBlank() }?.let { add("运营商" to it) }
+            plan.realnameStatus.takeIf { it.isNotBlank() }?.let { add("实名状态" to it) }
+            plan.paymentTypeText.takeIf { it.isNotBlank() }?.let { add("支付方式" to it) }
+        }
+        if (planRows.isNotEmpty()) {
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    CardTitle("套餐信息")
+                    planRows.forEachIndexed { index, (label, value) ->
+                        if (index > 0) SectionDivider()
+                        KeyValueRow(label = label, value = value)
+                    }
+                }
+            }
+        }
+
+        plan.equipment?.let { equipment ->
+            val equipmentRows = buildList {
+                add("设备状态" to if (equipment.deviceStatus == 1) "在线" else "离线")
+                equipment.hotspotName.takeIf { it.isNotBlank() }?.let { add("热点名称" to it) }
+                equipment.hotspotPassword.takeIf { it.isNotBlank() }?.let { add("热点密码" to it) }
+            }
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    CardTitle("设备与 SIM")
+                    equipmentRows.forEachIndexed { index, (label, value) ->
+                        if (index > 0) SectionDivider()
+                        KeyValueRow(label = label, value = value)
+                    }
+                    equipment.cardList.forEach { sim ->
+                        val label = buildString {
+                            append(sim.operatorText.ifBlank { "SIM 卡" })
+                            if (sim.isInUse()) append("（当前）")
+                        }
+                        val value = sim.realnameStatusText.ifBlank { "--" }
+                        SectionDivider()
+                        KeyValueRow(label = label, value = value)
                     }
                 }
             }
@@ -690,9 +773,10 @@ private fun formatUptime(totalSeconds: Long): String {
     val days = totalSeconds / 86400
     val hours = (totalSeconds % 86400) / 3600
     val minutes = (totalSeconds % 3600) / 60
+    val secs = totalSeconds % 60
     return buildString {
         if (days > 0) append("${days}天 ")
         if (hours > 0) append("${hours}时 ")
-        append("${minutes}分")
+        append("${minutes}分 ${secs}秒")
     }
 }

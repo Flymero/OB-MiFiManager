@@ -143,6 +143,10 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
             KeyValueRow("RSSI", "${lte.rssi} dBm")
             SectionDivider()
             KeyValueRow("发射功率", "${lte.txPower} dBm")
+            SectionDivider()
+            KeyValueRow("下行吞吐", "${lte.dlThroughPut} Mbps")
+            SectionDivider()
+            KeyValueRow("上行吞吐", "${lte.ulThroughPut} Mbps")
         }
     }
 }

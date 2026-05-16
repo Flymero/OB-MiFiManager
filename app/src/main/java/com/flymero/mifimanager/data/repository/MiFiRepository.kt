@@ -150,8 +150,8 @@ class MiFiRepository @Inject constructor(
 
     suspend fun restartDevice(): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            api.restartDevice()
-            Result.success(true)
+            val result = api.restartDevice()
+            Result.success(result.result == "success")
         } catch (e: java.net.SocketException) {
             Result.success(true)
         } catch (e: Exception) {
@@ -203,16 +203,108 @@ class MiFiRepository @Inject constructor(
     suspend fun clearTrafficStats(): Result<ApiResult> =
         runCatching { api.setStatistics(jsonBody(mapOf("clear" to "1"))) }
 
-    suspend fun changePassword(newPassword: String): Result<ApiResult> =
+    suspend fun changePassword(username: String, newPassword: String): Result<ApiResult> =
         runCatching {
             api.setAccountManagement(jsonBody(mapOf(
+                "account_action" to "1",
                 "router_user_list" to listOf(mapOf(
-                    "username" to "admin",
-                    "password" to newPassword,
-                    "authority" to "1"
+                    "username" to encodeValue(username),
+                    "password" to encodeValue(newPassword)
                 ))
             )))
         }
+
+    suspend fun saveWifiSecurity(
+        currentSecurityInfo: WlanSecurityInfo,
+        ssid: String,
+        password: String,
+        mode: String,
+        ssidBroadcast: Boolean
+    ): Result<ApiResult> = runCatching {
+        val data = linkedMapOf<String, Any>(
+            "ssid" to currentSecurityInfo.encodeSsid(ssid),
+            "ssid_bcast" to if (ssidBroadcast) "1" else "0",
+            "mode" to mode
+        )
+        if (mode != "None") {
+            val modeKey = if (mode == "WEP") "$mode.key1" else "$mode.key"
+            data[modeKey] = password
+            currentSecurityModeValue(currentSecurityInfo, mode)?.let {
+                data["$mode.mode"] = it
+            }
+            if (mode == "WAPI-PSK") {
+                currentSecurityKeyType(currentSecurityInfo)?.let {
+                    data["$mode.key_type"] = it
+                }
+            }
+        }
+        api.setWlanSecurity(jsonBody(data))
+    }
+
+    suspend fun saveWifiSettings(
+        currentWlanInfo: WlanInfo,
+        wlanEnable: Boolean,
+        apIsolate: Boolean
+    ): Result<ApiResult> = runCatching {
+        val data = linkedMapOf<String, Any>(
+            "wlan_enable" to if (wlanEnable) "1" else "0",
+            "rf_band" to currentWlanInfo.rfBand,
+            "net_mode" to currentWlanInfo.netMode,
+            "max_clients" to currentWlanInfo.maxClients,
+            "ap_isolate" to if (apIsolate) "1" else "0",
+            "bandwidth_acs" to currentWlanInfo.bandwidthAcsOrDefault()
+        )
+        if (currentWlanInfo.bandwidthAcsOrDefault() == "1") {
+            api.setWlan(jsonBody(data))
+        } else {
+            data["channel"] = currentWlanInfo.channel
+            data["bandwidth"] = currentWlanInfo.bandwidth
+            api.setWlan(jsonBody(data))
+        }
+    }
+
+    suspend fun setNetworkMode(currentWanInfo: WanInfo, mode: String): Result<ApiResult> = runCatching {
+        val data = linkedMapOf<String, Any>(
+            "NW_mode" to mode,
+            "NW_mode_action" to "1"
+        )
+        when (mode) {
+            "1" -> {
+                data["prefer_mode"] = "1"
+                data["prefer_mode_action"] = "1"
+            }
+            "3" -> {
+                data["prefer_mode"] = "3"
+                data["prefer_mode_action"] = "1"
+            }
+            "4" -> {
+                data["prefer_mode"] = "5"
+                data["prefer_mode_action"] = "1"
+            }
+            "8" -> {
+                data["prefer_mode"] = "8"
+                data["prefer_mode_action"] = "1"
+            }
+        }
+        if (currentWanInfo.mtu.isNotBlank()) {
+            data["mtu"] = currentWanInfo.mtu
+            data["mtu_action"] = "1"
+        }
+        api.setWan(jsonBody(data))
+    }
+
+    private fun encodeValue(value: String): String = java.net.URLEncoder.encode(value, Charsets.UTF_8.name())
+
+    private fun currentSecurityModeValue(info: WlanSecurityInfo, mode: String): String? = when (mode) {
+        "WPA2-PSK" -> info.wpa2Psk?.mode
+        "WPA-PSK" -> info.wpaPsk?.mode
+        "Mixed" -> info.mixed?.mode
+        "WPA3-SAE" -> info.wpa3Sae?.mode
+        "WPA2-WPA3" -> info.wpa2Wpa3?.mode
+        else -> null
+    }
+
+    private fun currentSecurityKeyType(info: WlanSecurityInfo): String? = info.wapiPsk?.keyType
 
     private var cachedPlanUrl: String? = null
 
@@ -248,11 +340,9 @@ class MiFiRepository @Inject constructor(
             val body = gson.toJson(mapOf("dev_no" to rechargeNo, "type" to 2))
                 .toRequestBody("application/json".toMediaType())
 
-            // Try cached URL first
             var url = getPlanUrl()
             var response = makePlanRequest(url, body)
 
-            // If 301/302 redirect, extract new URL and retry
             if (response.code in 301..302) {
                 val newUrl = response.header("Location")
                 response.close()

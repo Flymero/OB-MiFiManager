@@ -61,6 +61,7 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
     var selectedMode by remember(state.securityInfo) { mutableStateOf(state.securityInfo.mode) }
     var wifiEnabled by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.wlanEnable == "1") }
     var apIsolate by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.apIsolate == "1") }
+    var ssidBroadcast by remember(state.securityInfo) { mutableStateOf(state.securityInfo.ssidBcast == "1") }
     var expanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.saveResult) {
@@ -169,6 +170,18 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                             }
                         }
                     }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "隐藏 SSID",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Switch(checked = !ssidBroadcast, onCheckedChange = { ssidBroadcast = !it })
+                    }
 
                     Surface(
                         shape = MaterialTheme.shapes.large,
@@ -188,7 +201,7 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "当前设备固件可能不支持修改 WiFi 设置",
+                                text = "将按管理页真实参数格式保存 WiFi 设置",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -196,7 +209,7 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                     }
 
                     Button(
-                        onClick = { viewModel.saveSecurity(ssid, password, selectedMode) },
+                        onClick = { viewModel.saveSecurity(ssid, password, selectedMode, ssidBroadcast) },
                         enabled = !state.isSaving,
                         modifier = Modifier.align(Alignment.End),
                         shape = CircleShape
@@ -237,14 +250,7 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                     Switch(checked = apIsolate, onCheckedChange = { apIsolate = it })
                 }
                 Button(
-                    onClick = {
-                        viewModel.setWlanSettings(
-                            channel = state.wlanInfo.channel,
-                            maxClients = state.wlanInfo.maxClients,
-                            apIsolate = if (apIsolate) "1" else "0",
-                            wlanEnable = if (wifiEnabled) "1" else "0"
-                        )
-                    },
+                    onClick = { viewModel.saveWlanSettings(wifiEnabled, apIsolate) },
                     enabled = !state.isSaving,
                     modifier = Modifier.align(Alignment.End),
                     shape = CircleShape

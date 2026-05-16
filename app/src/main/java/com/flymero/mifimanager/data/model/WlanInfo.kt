@@ -10,6 +10,7 @@ data class WlanInfo(
     @SerializedName("first_channel") val firstChannel: String = "",
     @SerializedName("last_channel") val lastChannel: String = "",
     @SerializedName("bandwidth") val bandwidth: String = "",
+    @SerializedName("bandwidth_acs") val bandwidthAcs: String = "",
     @SerializedName("wlan_enable") val wlanEnable: String = "",
     @SerializedName("max_clients") val maxClients: String = "",
     @SerializedName("wifi_sleep_time") val wifiSleepTime: String = "",
@@ -17,4 +18,6 @@ data class WlanInfo(
     @SerializedName("dtim_interval") val dtimInterval: String = "",
     @SerializedName("ap_isolate") val apIsolate: String = "",
     @SerializedName("only_20m") val only20m: String = ""
-)
+) {
+    fun bandwidthAcsOrDefault(): String = bandwidthAcs.ifBlank { "1" }
+}

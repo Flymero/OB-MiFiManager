@@ -92,7 +92,7 @@ interface MiFiApi {
     @POST("xml_action.cgi?method=post&module=duster&file=json_custom_fw_set")
     suspend fun setCustomFw(@Body body: RequestBody): ApiResult
 
-    @GET("xml_action.cgi?Action=restart")
+    @GET("xml_action.cgi?method=get&module=duster&file=json_device_restart")
     suspend fun restartDevice()
 
     @GET("xml_action.cgi?Action=restore_factory")

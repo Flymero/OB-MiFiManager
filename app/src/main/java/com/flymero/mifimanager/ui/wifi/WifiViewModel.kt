@@ -41,37 +41,35 @@ class WifiViewModel @Inject constructor(
         }
     }
 
-    fun saveSecurity(ssid: String, password: String, mode: String) {
+    fun saveSecurity(ssid: String, password: String, mode: String, ssidBroadcast: Boolean) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isSaving = true)
-            val encodedSsid = _state.value.securityInfo.encodeSsid(ssid)
-            val data = mapOf(
-                "ssid" to encodedSsid,
-                "mode" to mode,
-                mode to mapOf("mode" to "AES-CCMP", "key" to password)
+            val result = repository.saveWifiSecurity(
+                currentSecurityInfo = _state.value.securityInfo,
+                ssid = ssid,
+                password = password,
+                mode = mode,
+                ssidBroadcast = ssidBroadcast
             )
-            val result = repository.setWlanSecurity(data)
             _state.value = _state.value.copy(
                 isSaving = false,
-                saveResult = if (result.isSuccess) "保存成功" else "保存失败"
+                saveResult = if (result.getOrNull()?.isSuccess == true) "保存成功" else "保存失败"
             )
             refresh()
         }
     }
 
-    fun setWlanSettings(channel: String, maxClients: String, apIsolate: String, wlanEnable: String) {
+    fun saveWlanSettings(wlanEnable: Boolean, apIsolate: Boolean) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isSaving = true)
-            val data = mapOf(
-                "channel" to channel,
-                "max_clients" to maxClients,
-                "ap_isolate" to apIsolate,
-                "wlan_enable" to wlanEnable
+            val result = repository.saveWifiSettings(
+                currentWlanInfo = _state.value.wlanInfo,
+                wlanEnable = wlanEnable,
+                apIsolate = apIsolate
             )
-            val result = repository.setWlan(data)
             _state.value = _state.value.copy(
                 isSaving = false,
-                saveResult = if (result.isSuccess) "保存成功" else "保存失败"
+                saveResult = if (result.getOrNull()?.isSuccess == true) "保存成功" else "保存失败"
             )
             refresh()
         }

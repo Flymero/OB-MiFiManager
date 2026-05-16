@@ -67,9 +67,9 @@ class DeviceViewModel @Inject constructor(
 
     fun setNetworkMode(mode: String) {
         viewModelScope.launch {
-            val result = repository.setWan(mapOf("NW_mode" to mode))
+            val result = repository.setNetworkMode(_state.value.wanInfo, mode)
             _state.value = _state.value.copy(
-                actionResult = if (result.isSuccess) "网络模式已切换" else "切换失败"
+                actionResult = if (result.getOrNull()?.isSuccess == true) "网络模式已切换" else "切换失败"
             )
             refresh()
         }
@@ -78,9 +78,9 @@ class DeviceViewModel @Inject constructor(
     fun switchSim(simId: String) {
         viewModelScope.launch {
             val result = if (simId == "4") {
-                repository.setSimConfig("0") // smart mode
+                repository.setSimConfig("0")
             } else {
-                repository.setSimConfig("1", simId) // specific SIM
+                repository.setSimConfig("1", simId)
             }
             _state.value = _state.value.copy(
                 actionResult = if (result.isSuccess) "SIM卡已切换" else "切换失败"
@@ -91,8 +91,10 @@ class DeviceViewModel @Inject constructor(
 
     fun restartDevice() {
         viewModelScope.launch {
-            repository.restartDevice()
-            _state.value = _state.value.copy(actionResult = "设备正在重启...")
+            val result = repository.restartDevice()
+            _state.value = _state.value.copy(
+                actionResult = if (result.getOrNull() == true) "设备正在重启..." else "重启失败"
+            )
         }
     }
 
@@ -105,9 +107,10 @@ class DeviceViewModel @Inject constructor(
 
     fun changePassword(newPassword: String) {
         viewModelScope.launch {
-            val result = repository.changePassword(newPassword)
+            val username = dataStore.getUsername().ifBlank { "admin" }
+            val result = repository.changePassword(username, newPassword)
             _state.value = _state.value.copy(
-                actionResult = if (result.isSuccess) "密码修改成功" else "密码修改失败"
+                actionResult = if (result.getOrNull()?.isSuccess == true) "密码修改成功" else "密码修改失败"
             )
         }
     }

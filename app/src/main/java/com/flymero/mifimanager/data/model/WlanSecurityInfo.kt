@@ -12,7 +12,8 @@ data class WlanSecurityInfo(
     @SerializedName("Mixed") val mixed: WpaConfig? = null,
     @SerializedName("WPA3-SAE") val wpa3Sae: WpaConfig? = null,
     @SerializedName("WPA2-WPA3") val wpa2Wpa3: WpaConfig? = null,
-    @SerializedName("WEP") val wep: WepConfig? = null
+    @SerializedName("WEP") val wep: WepConfig? = null,
+    @SerializedName("WAPI-PSK") val wapiPsk: WapiConfig? = null
 ) {
     fun decodedSsid(): String {
         if (ssid.isEmpty()) return ""
@@ -30,6 +31,7 @@ data class WlanSecurityInfo(
             "Mixed" -> mixed?.key ?: ""
             "WPA3-SAE" -> wpa3Sae?.key ?: ""
             "WPA2-WPA3" -> wpa2Wpa3?.key ?: ""
+            "WAPI-PSK" -> wapiPsk?.key ?: ""
             else -> ""
         }
     }
@@ -48,4 +50,9 @@ data class WepConfig(
     @SerializedName("key1") val key1: String = "",
     @SerializedName("auth") val auth: String = "",
     @SerializedName("encrypt") val encrypt: String = ""
+)
+
+data class WapiConfig(
+    @SerializedName("key_type") val keyType: String = "",
+    @SerializedName("key") val key: String = ""
 )

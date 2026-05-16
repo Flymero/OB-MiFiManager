@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -95,7 +96,9 @@ fun KeyValueRow(
     modifier: Modifier = Modifier,
     showChevron: Boolean = false,
     valueColor: Color = MaterialTheme.colorScheme.onSurface,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    onCopy: (() -> Unit)? = null,
+    valueMaxLines: Int = 1
 ) {
     Row(
         modifier = modifier
@@ -122,9 +125,25 @@ fun KeyValueRow(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
                 color = valueColor,
-                maxLines = 2,
+                maxLines = valueMaxLines,
                 overflow = TextOverflow.Ellipsis
             )
+            onCopy?.let {
+                IconButton(
+                    onClick = it,
+                    modifier = Modifier.size(28.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "复制",
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
             if (showChevron) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -134,6 +153,25 @@ fun KeyValueRow(
             }
         }
     }
+}
+
+@Composable
+fun SettingsActionRow(
+    label: String,
+    modifier: Modifier = Modifier,
+    value: String? = null,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    showChevron: Boolean = true,
+    onClick: () -> Unit
+) {
+    KeyValueRow(
+        label = label,
+        value = value.orEmpty(),
+        modifier = modifier,
+        showChevron = showChevron,
+        valueColor = valueColor,
+        onClick = onClick
+    )
 }
 
 @Composable

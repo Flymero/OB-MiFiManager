@@ -39,6 +39,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -66,6 +67,7 @@ import com.flymero.mifimanager.ui.theme.SurfaceContainerLowLight
 
 private data class NetworkModeOption(val value: String, val label: String)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceScreen(
     onLogout: () -> Unit = {},

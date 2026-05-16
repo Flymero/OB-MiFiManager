@@ -20,6 +20,7 @@ data class DeviceState(
     val firmwareInfo: FirmwareInfo = FirmwareInfo(),
     val planEquipment: PlanEquipment? = null,
     val isLoading: Boolean = true,
+    val isPlanLoading: Boolean = false,
     val actionResult: String? = null,
     val isLoggedOut: Boolean = false
 )
@@ -43,17 +44,23 @@ class DeviceViewModel @Inject constructor(
             val apn = repository.getApnProfileInfo()
             val sim = repository.getSimInfo()
             val firmware = repository.getFirmwareInfo()
-            val plan = repository.getPlanInfo()
-            _state.value = DeviceState(
+
+            _state.value = _state.value.copy(
                 homepageInfo = homepage.getOrDefault(HomepageInfo()),
                 wanInfo = wan.getOrDefault(WanInfo()),
                 dhcpInfo = dhcp.getOrDefault(DhcpInfo()),
                 apnInfo = apn.getOrDefault(ApnProfileInfo()),
                 simInfo = sim.getOrDefault(SimInfo()),
                 firmwareInfo = firmware.getOrDefault(FirmwareInfo()),
+                isLoading = false,
+                isPlanLoading = true
+            )
+
+            val plan = repository.getPlanInfo()
+            _state.value = _state.value.copy(
                 planEquipment = if (plan.isSuccess && plan.getOrNull()?.isSuccess == true)
                     plan.getOrNull()?.data?.equipment else null,
-                isLoading = false
+                isPlanLoading = false
             )
         }
     }

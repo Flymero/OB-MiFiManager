@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -35,6 +37,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,7 +50,7 @@ import com.flymero.mifimanager.data.model.ClientDevice
 import com.flymero.mifimanager.data.model.ConnectedDevice
 import com.flymero.mifimanager.ui.components.DeviceListItem
 import com.flymero.mifimanager.ui.theme.ErrorLight
-import com.flymero.mifimanager.ui.theme.Success
+import kotlinx.coroutines.launch
 
 @Composable
 fun DevicesScreen(
@@ -58,12 +61,18 @@ fun DevicesScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
+    val pagerState = rememberPagerState(pageCount = { 4 })
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(state.actionResult) {
         state.actionResult?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearResult()
         }
+    }
+
+    LaunchedEffect(pagerState.currentPage) {
+        selectedTab = pagerState.currentPage
     }
 
     if (state.isLoading) {
@@ -133,7 +142,10 @@ fun DevicesScreen(
                     DeviceCategoryTab(
                         title = title,
                         selected = selectedTab == index,
-                        onClick = { selectedTab = index }
+                        onClick = {
+                            selectedTab = index
+                            scope.launch { pagerState.animateScrollToPage(index) }
+                        }
                     )
                 }
             }
@@ -152,54 +164,60 @@ fun DevicesScreen(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                when (selectedTab) {
-                    0 -> {
-                        items(onlineDevices) { device ->
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f)
+            ) { page ->
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    when (page) {
+                        0 -> {
+                            items(onlineDevices) { device ->
+                                ClientDeviceItem(device, "在线", Success, false, context, viewModel)
+                            }
+                            items(blockedDevices) { device ->
+                                ClientDeviceItem(device, "已屏蔽", ErrorLight, true, context, viewModel)
+                            }
+                            items(offlineDevices) { device ->
+                                ClientDeviceItem(device, "离线", MaterialTheme.colorScheme.onSurfaceVariant, false, context, viewModel)
+                            }
+                        }
+                        1 -> items(onlineDevices) { device ->
                             ClientDeviceItem(device, "在线", Success, false, context, viewModel)
                         }
-                        items(blockedDevices) { device ->
+                        2 -> items(blockedDevices) { device ->
                             ClientDeviceItem(device, "已屏蔽", ErrorLight, true, context, viewModel)
                         }
-                        items(offlineDevices) { device ->
+                        3 -> items(offlineDevices) { device ->
                             ClientDeviceItem(device, "离线", MaterialTheme.colorScheme.onSurfaceVariant, false, context, viewModel)
                         }
                     }
-                    1 -> items(onlineDevices) { device ->
-                        ClientDeviceItem(device, "在线", Success, false, context, viewModel)
-                    }
-                    2 -> items(blockedDevices) { device ->
-                        ClientDeviceItem(device, "已屏蔽", ErrorLight, true, context, viewModel)
-                    }
-                    3 -> items(offlineDevices) { device ->
-                        ClientDeviceItem(device, "离线", MaterialTheme.colorScheme.onSurfaceVariant, false, context, viewModel)
-                    }
-                }
 
-                if (selectedTab == 0 && historyDevices.isNotEmpty()) {
-                    item {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                            modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)
-                        ) {
-                            Text(
-                                text = "历史设备",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "以下设备当前未在线，仅保留历史记录。",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    if (page == 0 && historyDevices.isNotEmpty()) {
+                        item {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                                modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)
+                            ) {
+                                Text(
+                                    text = "历史设备",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "以下设备当前未在线，仅保留历史记录。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
-                    }
-                    items(historyDevices) { device ->
-                        HistoryDeviceItem(device)
+                        items(historyDevices) { device ->
+                            HistoryDeviceItem(device)
+                        }
                     }
                 }
             }
+
         }
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }

@@ -5,9 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,18 +14,26 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -49,19 +55,17 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.flymero.mifimanager.data.model.DhcpInfo
 import com.flymero.mifimanager.data.model.HomepageInfo
+import com.flymero.mifimanager.data.model.PlanEquipment
 import com.flymero.mifimanager.data.model.SimCard
 import com.flymero.mifimanager.data.model.SimInfo
 import com.flymero.mifimanager.data.model.WanInfo
-import com.flymero.mifimanager.ui.components.CardTitle
+import com.flymero.mifimanager.ui.components.InfoRow
 import com.flymero.mifimanager.ui.components.KeyValueRow
-import com.flymero.mifimanager.ui.components.SectionCard
-import com.flymero.mifimanager.ui.components.SectionDivider
-import com.flymero.mifimanager.ui.components.SettingsActionRow
 import com.flymero.mifimanager.ui.theme.ErrorContainerLight
+import com.flymero.mifimanager.ui.theme.SurfaceContainerLowLight
 
 private data class NetworkModeOption(val value: String, val label: String)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceScreen(
     onLogout: () -> Unit = {},
@@ -70,12 +74,11 @@ fun DeviceScreen(
     val state by viewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
-    var showResetSheet by remember { mutableStateOf(false) }
-    var showRestartSheet by remember { mutableStateOf(false) }
+    var showRestartDialog by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showNetworkModeSheet by remember { mutableStateOf(false) }
     var deviceInfoExpanded by remember { mutableStateOf(false) }
-    var dhcpExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.actionResult) {
         state.actionResult?.let {
@@ -105,47 +108,20 @@ fun DeviceScreen(
     val firmware = state.firmwareInfo
     val planEquipment = state.planEquipment
     val networkOptions = networkModeOptions()
-    val canSwitchNetworkMode = networkOptions.size > 1
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .padding(16.dp)
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "管理",
+                text = "设备管理",
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            SimManagementCard(
-                simInfo = simInfo,
-                homepage = homepage,
-                planEquipment = planEquipment,
-                onSwitchSim = viewModel::switchSim
-            )
-
-            MobileNetworkCard(
-                wan = wan,
-                apn = apn.apn,
-                canSwitchNetworkMode = canSwitchNetworkMode,
-                onOpenNetworkModeSheet = { showNetworkModeSheet = true }
-            )
-
-            DhcpCard(
-                dhcp = dhcp,
-                expanded = dhcpExpanded,
-                onToggleExpanded = { dhcpExpanded = !dhcpExpanded }
-            )
-
-            OperationsCard(
-                onChangePassword = { showPasswordDialog = true },
-                onRestart = { showRestartSheet = true },
-                onLogout = viewModel::logout
+                fontWeight = FontWeight.Bold
             )
 
             DeviceInfoCard(
@@ -155,17 +131,35 @@ fun DeviceScreen(
                 firmwareDate = firmware.versionDate,
                 expanded = deviceInfoExpanded,
                 context = context,
-                onToggleExpanded = { deviceInfoExpanded = !deviceInfoExpanded },
-                onCopy = { label, value ->
-                    copyToClipboard(context, label, value)
-                    viewModel.clearResult()
-                }
+                onToggleExpanded = { deviceInfoExpanded = !deviceInfoExpanded }
             )
 
-            DangerZoneCard(onRestoreFactory = { showResetSheet = true })
+            SimManagementCard(
+                simInfo = simInfo,
+                planEquipment = planEquipment,
+                isPlanLoading = state.isPlanLoading,
+                onSwitchSim = viewModel::switchSim
+            )
+
+            NetworkCard(
+                wan = wan,
+                apn = apn.apn,
+                onOpenModeSheet = { showNetworkModeSheet = true }
+            )
+
+            DhcpCard(dhcp = dhcp)
+
+            ActionsCard(
+                onChangePassword = { showPasswordDialog = true },
+                onRestart = { showRestartDialog = true },
+                onLogout = viewModel::logout
+            )
+
+            DangerZoneCard(onRestoreFactory = { showResetDialog = true })
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -178,10 +172,10 @@ fun DeviceScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "选择网络模式",
+                    text = "切换网络模式",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -190,47 +184,64 @@ fun DeviceScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 networkOptions.forEachIndexed { index, option ->
-                    SettingsActionRow(
-                        label = option.label,
-                        value = if (option.value == wan.nwMode) "当前" else null,
+                    TextButton(
                         onClick = {
                             showNetworkModeSheet = false
                             if (option.value != wan.nwMode) viewModel.setNetworkMode(option.value)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(option.label)
+                            if (option.value == wan.nwMode) {
+                                Text(
+                                    text = "当前",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
-                    )
-                    if (index != networkOptions.lastIndex) SectionDivider()
+                    }
+                    if (index != networkOptions.lastIndex) HorizontalDivider()
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
         }
     }
 
-    if (showRestartSheet) {
-        ConfirmationSheet(
-            title = "重启设备",
-            message = "确定要重启随身 WiFi 吗？重启期间网络将断开。",
-            confirmLabel = "确认重启",
-            onDismiss = { showRestartSheet = false },
-            onConfirm = {
-                showRestartSheet = false
-                viewModel.restartDevice()
-            }
+    if (showRestartDialog) {
+        AlertDialog(
+            onDismissRequest = { showRestartDialog = false },
+            title = { Text("重启设备") },
+            text = { Text("确定要重启随身 WiFi 吗？重启期间网络将断开。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRestartDialog = false
+                    viewModel.restartDevice()
+                }) { Text("确定") }
+            },
+            dismissButton = { TextButton(onClick = { showRestartDialog = false }) { Text("取消") } }
         )
     }
 
-    if (showResetSheet) {
-        ConfirmationSheet(
-            title = "恢复出厂设置",
-            message = "将清除所有配置并重启设备，此操作不可撤销。",
-            confirmLabel = "确认恢复",
-            confirmColor = MaterialTheme.colorScheme.error,
-            onDismiss = { showResetSheet = false },
-            onConfirm = {
-                showResetSheet = false
-                viewModel.restoreFactory()
-            }
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            title = { Text("恢复出厂设置") },
+            text = { Text("将清除所有配置并重启设备，此操作不可撤销。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showResetDialog = false
+                    viewModel.restoreFactory()
+                }) { Text("确定", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { showResetDialog = false }) { Text("取消") } }
         )
     }
 
@@ -242,7 +253,7 @@ fun DeviceScreen(
             title = { Text("修改管理密码") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    androidx.compose.material3.OutlinedTextField(
+                    OutlinedTextField(
                         value = newPwd,
                         onValueChange = { newPwd = it },
                         label = { Text("新密码") },
@@ -250,7 +261,7 @@ fun DeviceScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
-                    androidx.compose.material3.OutlinedTextField(
+                    OutlinedTextField(
                         value = confirmPwd,
                         onValueChange = { confirmPwd = it },
                         label = { Text("确认新密码") },
@@ -258,6 +269,13 @@ fun DeviceScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
+                    if (confirmPwd.isNotEmpty() && newPwd != confirmPwd) {
+                        Text(
+                            "两次密码不一致",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -275,124 +293,6 @@ fun DeviceScreen(
 }
 
 @Composable
-private fun SimManagementCard(
-    simInfo: SimInfo,
-    homepage: HomepageInfo,
-    planEquipment: com.flymero.mifimanager.data.model.PlanEquipment?,
-    onSwitchSim: (String) -> Unit
-) {
-    val currentMode = if (simInfo.switchMode == "0") "智能选网" else "指定 SIM"
-    val switchableSims = simInfo.simList.filter { sim ->
-        sim.isPresent() && !sim.isBanned() && !isCurrentSim(simInfo, sim, planEquipment)
-    }
-
-    SectionCard {
-        CardTitle("SIM 卡管理")
-        KeyValueRow("当前模式", currentMode)
-        if (simInfo.simList.isNotEmpty()) SectionDivider()
-        simInfo.simList.forEachIndexed { index, sim ->
-            val operator = planEquipment?.cardList?.find { it.iccid == sim.simIccid }?.operatorText
-                ?.takeIf { it.isNotBlank() }
-                ?: sim.carrierName()
-            KeyValueRow(
-                label = sim.simName.ifBlank { "SIM${index + 1}" },
-                value = "$operator · ${simStatusText(simInfo, sim, planEquipment)}"
-            )
-            if (index != simInfo.simList.lastIndex) SectionDivider()
-        }
-        if (simInfo.simList.isNotEmpty()) SectionDivider()
-        switchableSims.forEach { sim ->
-            SettingsActionRow(
-                label = "切换到 ${sim.simName.ifBlank { "SIM" }}",
-                value = null,
-                onClick = { onSwitchSim(sim.simId) }
-            )
-            SectionDivider()
-        }
-        SettingsActionRow(
-            label = "智能选网",
-            value = if (simInfo.switchMode == "0") "当前" else null,
-            onClick = { if (simInfo.switchMode != "0") onSwitchSim("4") }
-        )
-    }
-}
-
-@Composable
-private fun MobileNetworkCard(
-    wan: WanInfo,
-    apn: String,
-    canSwitchNetworkMode: Boolean,
-    onOpenNetworkModeSheet: () -> Unit
-) {
-    SectionCard {
-        CardTitle("移动网络")
-        if (canSwitchNetworkMode) {
-            SettingsActionRow(
-                label = "网络模式",
-                value = wan.networkModeName(),
-                onClick = onOpenNetworkModeSheet
-            )
-        } else {
-            KeyValueRow("网络模式", wan.networkModeName())
-        }
-        SectionDivider()
-        KeyValueRow("APN", apn.ifBlank { "--" })
-        SectionDivider()
-        KeyValueRow("MTU", wan.mtu.ifBlank { "--" })
-    }
-}
-
-@Composable
-private fun DhcpCard(
-    dhcp: DhcpInfo,
-    expanded: Boolean,
-    onToggleExpanded: () -> Unit
-) {
-    SectionCard {
-        CardTitle(
-            title = "DHCP 设置",
-            trailing = {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.clickable(onClick = onToggleExpanded)
-                )
-            }
-        )
-        KeyValueRow("状态", if (dhcp.status == "1") "启用" else "禁用")
-        SectionDivider()
-        KeyValueRow("地址池", "${dhcp.start.ifBlank { "--" }} - ${dhcp.end.ifBlank { "--" }}")
-        AnimatedVisibility(expanded) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionDivider()
-                KeyValueRow("IP 地址", dhcp.ip.ifBlank { "--" })
-                SectionDivider()
-                KeyValueRow("子网掩码", dhcp.mask.ifBlank { "--" })
-                SectionDivider()
-                KeyValueRow("租约时间", "${(dhcp.leaseTime.toLongOrNull() ?: 0) / 3600} 小时")
-            }
-        }
-    }
-}
-
-@Composable
-private fun OperationsCard(
-    onChangePassword: () -> Unit,
-    onRestart: () -> Unit,
-    onLogout: () -> Unit
-) {
-    SectionCard {
-        CardTitle("操作")
-        SettingsActionRow(label = "修改管理密码", onClick = onChangePassword)
-        SectionDivider()
-        SettingsActionRow(label = "重启设备", onClick = onRestart)
-        SectionDivider()
-        SettingsActionRow(label = "退出登录", onClick = onLogout)
-    }
-}
-
-@Composable
 private fun DeviceInfoCard(
     homepage: HomepageInfo,
     firmwareVersion: String,
@@ -400,41 +300,174 @@ private fun DeviceInfoCard(
     firmwareDate: String,
     expanded: Boolean,
     context: Context,
-    onToggleExpanded: () -> Unit,
-    onCopy: (String, String) -> Unit
+    onToggleExpanded: () -> Unit
 ) {
-    SectionCard {
-        CardTitle(
-            title = "设备信息",
-            trailing = {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.clickable(onClick = onToggleExpanded)
-                )
-            }
+    ManagementCard(title = "设备信息") {
+        KeyValueRow(
+            label = "设备型号",
+            value = homepage.deviceName.ifEmpty { homepage.deviceModel }.ifBlank { "--" },
+            showChevron = true,
+            onClick = onToggleExpanded
         )
-        SummaryCopyRow("设备型号", homepage.deviceName.ifEmpty { homepage.deviceModel }, context, onCopy)
-        SectionDivider()
-        SummaryCopyRow("固件版本", firmwareVersion.ifBlank { "--" }, context, onCopy)
-        SectionDivider()
-        SummaryCopyRow("IMEI", homepage.imei.ifBlank { "--" }, context, onCopy)
-        SectionDivider()
-        SummaryCopyRow("MAC 地址", homepage.mac.ifBlank { "--" }, context, onCopy)
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        CopyInfoRow("固件版本", firmwareVersion.ifBlank { "--" }, context)
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        CopyInfoRow("IMEI", homepage.imei.ifBlank { "--" }, context)
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        CopyInfoRow("MAC 地址", homepage.mac.ifBlank { "--" }, context)
+
         AnimatedVisibility(expanded) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionDivider()
-                SummaryCopyRow("硬件版本", hardwareVersion.ifBlank { "--" }, context, onCopy)
-                SectionDivider()
-                SummaryCopyRow("发布日期", firmwareDate.ifBlank { "--" }, context, onCopy)
-                SectionDivider()
-                SummaryCopyRow("序列号", homepage.serialNumber.ifBlank { "--" }, context, onCopy)
-                SectionDivider()
-                SummaryCopyRow("IMSI", homepage.imsi.ifBlank { "--" }, context, onCopy)
-                SectionDivider()
-                SummaryCopyRow("ICCID", homepage.iccid.ifBlank { "--" }, context, onCopy)
+            Column {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                InfoRow("硬件版本", hardwareVersion.ifBlank { "--" })
+                InfoRow("发布日期", firmwareDate.ifBlank { "--" })
+                CopyInfoRow("序列号", homepage.serialNumber.ifBlank { "--" }, context)
+                CopyInfoRow("IMSI", homepage.imsi.ifBlank { "--" }, context)
+                CopyInfoRow("ICCID", homepage.iccid.ifBlank { "--" }, context)
             }
+        }
+    }
+}
+
+@Composable
+private fun SimManagementCard(
+    simInfo: SimInfo,
+    planEquipment: PlanEquipment?,
+    isPlanLoading: Boolean,
+    onSwitchSim: (String) -> Unit
+) {
+    ManagementCard(title = "SIM 卡管理", icon = { Icon(Icons.Default.SimCard, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }) {
+        InfoRow("当前模式", if (simInfo.switchMode == "0") "智能选网" else "指定 SIM")
+        if (isPlanLoading) {
+            Text(
+                text = "运营商与实名信息加载中…",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        simInfo.simList.forEachIndexed { index, sim ->
+            val planSim = planEquipment?.cardList?.find { it.iccid == sim.simIccid }
+            val isCurrent = isCurrentSim(simInfo, sim, planEquipment)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "${sim.simName.ifBlank { "SIM${index + 1}" }}（${planSim?.operatorText ?: sim.carrierName()}）",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                    if (sim.isPresent()) {
+                        Text(
+                            text = "ICCID: ${sim.simIccid}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = "未插入",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    planSim?.realnameStatusText?.takeIf { it.isNotBlank() }?.let {
+                        Text(
+                            text = "实名: $it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                when {
+                    !sim.isPresent() -> Text(
+                        text = "未插入",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    isCurrent -> Text(
+                        text = "当前使用",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    sim.isBanned() -> Text(
+                        text = "已禁用",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    else -> TextButton(onClick = { onSwitchSim(sim.simId) }) {
+                        Text("切换")
+                    }
+                }
+            }
+            if (index != simInfo.simList.lastIndex) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        TextButton(onClick = { if (simInfo.switchMode != "0") onSwitchSim("4") }) {
+            Text(
+                text = if (simInfo.switchMode == "0") "✓ 智能选网" else "切换到智能选网",
+                fontWeight = if (simInfo.switchMode == "0") FontWeight.SemiBold else FontWeight.Normal
+            )
+        }
+    }
+}
+
+@Composable
+private fun NetworkCard(
+    wan: WanInfo,
+    apn: String,
+    onOpenModeSheet: () -> Unit
+) {
+    ManagementCard(title = "移动网络") {
+        InfoRow("当前模式", wan.networkModeName())
+        InfoRow("MTU", wan.mtu.ifBlank { "--" })
+        InfoRow("APN", apn.ifBlank { "--" })
+
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(onClick = onOpenModeSheet, modifier = Modifier.fillMaxWidth()) {
+            Text("切换网络模式")
+        }
+    }
+}
+
+@Composable
+private fun DhcpCard(dhcp: DhcpInfo) {
+    ManagementCard(title = "DHCP 设置") {
+        InfoRow("状态", if (dhcp.status == "1") "启用" else "禁用")
+        InfoRow("IP 地址", dhcp.ip.ifBlank { "--" })
+        InfoRow("子网掩码", dhcp.mask.ifBlank { "--" })
+        InfoRow("地址池", "${dhcp.start.ifBlank { "--" }} - ${dhcp.end.ifBlank { "--" }}")
+        InfoRow("租约时间", "${(dhcp.leaseTime.toLongOrNull() ?: 0) / 3600} 小时")
+    }
+}
+
+@Composable
+private fun ActionsCard(
+    onChangePassword: () -> Unit,
+    onRestart: () -> Unit,
+    onLogout: () -> Unit
+) {
+    ManagementCard(title = "操作") {
+        OutlinedButton(onClick = onChangePassword, modifier = Modifier.fillMaxWidth()) {
+            Text("修改管理密码")
+        }
+
+        Button(onClick = onRestart, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.RestartAlt, contentDescription = null)
+            Text("  重启设备")
+        }
+
+        OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Logout, contentDescription = null)
+            Text("  退出登录")
         }
     }
 }
@@ -442,13 +475,14 @@ private fun DeviceInfoCard(
 @Composable
 private fun DangerZoneCard(onRestoreFactory: () -> Unit) {
     Surface(
-        shape = MaterialTheme.shapes.extraLarge,
-        color = ErrorContainerLight.copy(alpha = 0.7f),
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = ErrorContainerLight.copy(alpha = 0.92f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.24f))
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 text = "危险操作",
@@ -461,66 +495,59 @@ private fun DangerZoneCard(onRestoreFactory: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            SettingsActionRow(
-                label = "恢复出厂设置",
-                valueColor = MaterialTheme.colorScheme.error,
-                onClick = onRestoreFactory
-            )
+            Button(
+                onClick = onRestoreFactory,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                )
+            ) {
+                Icon(Icons.Default.PowerSettingsNew, contentDescription = null)
+                Text("  恢复出厂设置")
+            }
         }
     }
 }
 
 @Composable
-private fun SummaryCopyRow(
-    label: String,
-    value: String,
-    context: Context,
-    onCopy: (String, String) -> Unit
+private fun ManagementCard(
+    title: String,
+    icon: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit
 ) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = SurfaceContainerLowLight
+        ),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                icon?.invoke()
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun CopyInfoRow(label: String, value: String, context: Context) {
     KeyValueRow(
         label = label,
         value = value,
-        onCopy = { if (value.isNotBlank() && value != "--") onCopy(label, value) }
+        onCopy = { if (value.isNotBlank() && value != "--") copyToClipboard(context, label, value) }
     )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ConfirmationSheet(
-    title: String,
-    message: String,
-    confirmLabel: String,
-    confirmColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            HorizontalDivider()
-            TextButton(onClick = onConfirm, modifier = Modifier.align(Alignment.End)) {
-                Text(confirmLabel, color = confirmColor)
-            }
-            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                Text("取消")
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-    }
 }
 
 private fun networkModeOptions(): List<NetworkModeOption> = listOf(
@@ -533,21 +560,10 @@ private fun networkModeOptions(): List<NetworkModeOption> = listOf(
 private fun isCurrentSim(
     simInfo: SimInfo,
     sim: SimCard,
-    planEquipment: com.flymero.mifimanager.data.model.PlanEquipment?
+    planEquipment: PlanEquipment?
 ): Boolean {
     val planSim = planEquipment?.cardList?.find { it.iccid == sim.simIccid }
     return simInfo.switchMode == "1" && sim.simId == simInfo.soleSimId || planSim?.isInUse() == true
-}
-
-private fun simStatusText(
-    simInfo: SimInfo,
-    sim: SimCard,
-    planEquipment: com.flymero.mifimanager.data.model.PlanEquipment?
-): String = when {
-    !sim.isPresent() -> "未插入"
-    isCurrentSim(simInfo, sim, planEquipment) -> "当前使用"
-    sim.isBanned() -> "已禁用"
-    else -> "可切换"
 }
 
 private fun copyToClipboard(context: Context, label: String, value: String) {

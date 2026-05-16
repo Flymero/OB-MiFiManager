@@ -13,9 +13,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import javax.inject.Inject
 
 data class DashboardState(
@@ -28,9 +25,8 @@ data class DashboardState(
     val error: String? = null,
     val localUptimeSeconds: Long = 0,
     val cellularConnecting: Boolean = false,
-    val isRefreshing: Boolean = false,
+    val isPlanRefreshing: Boolean = false,
     val refreshMessage: String? = null,
-    val lastUpdatedLabel: String? = null,
     val bandSummary: String = "--"
 )
 
@@ -48,6 +44,7 @@ class DashboardViewModel @Inject constructor(
         startStatusPolling()
         startUptimeCounter()
         startSlowPolling()
+        refreshPlanOnce()
     }
 
     private fun startStatusPolling() {
@@ -76,7 +73,6 @@ class DashboardViewModel @Inject constructor(
             while (true) {
                 refreshHomepage()
                 refreshStatistics()
-                refreshPlan()
                 refreshEngineering()
                 delay(5000)
             }
@@ -117,6 +113,33 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    private fun refreshPlanOnce() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isPlanRefreshing = true)
+            runCatching { refreshPlan() }
+            _state.value = _state.value.copy(isPlanRefreshing = false)
+        }
+    }
+
+    fun refreshPlanManually() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isPlanRefreshing = true)
+            runCatching {
+                refreshPlan()
+            }.onSuccess {
+                _state.value = _state.value.copy(
+                    isPlanRefreshing = false,
+                    refreshMessage = "套餐信息已刷新"
+                )
+            }.onFailure {
+                _state.value = _state.value.copy(
+                    isPlanRefreshing = false,
+                    refreshMessage = "套餐信息刷新失败"
+                )
+            }
+        }
+    }
+
     private suspend fun refreshEngineering() {
         val result = repository.getEngineeringInfo()
         val engineering = result.getOrDefault(_state.value.engineeringInfo)
@@ -127,30 +150,6 @@ class DashboardViewModel @Inject constructor(
             "--"
         }
         _state.value = _state.value.copy(engineeringInfo = engineering, bandSummary = bandSummary)
-    }
-
-    fun refreshNow() {
-        viewModelScope.launch {
-            _state.value = _state.value.copy(isRefreshing = true)
-            runCatching {
-                refreshStatus()
-                refreshHomepage()
-                refreshStatistics()
-                refreshPlan()
-                refreshEngineering()
-            }.onSuccess {
-                _state.value = _state.value.copy(
-                    isRefreshing = false,
-                    refreshMessage = "已刷新",
-                    lastUpdatedLabel = "更新于 ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())}"
-                )
-            }.onFailure {
-                _state.value = _state.value.copy(
-                    isRefreshing = false,
-                    refreshMessage = "更新失败，点按重试"
-                )
-            }
-        }
     }
 
     fun toggleCellular(connect: Boolean) {

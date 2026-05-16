@@ -29,8 +29,6 @@ import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -166,25 +164,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                             color = if (homepage.connectDisconnect == "cellular") Success else Warning,
                             containerColor = if (homepage.connectDisconnect == "cellular") SuccessContainer else WarningContainer
                         )
-                    }
-                    state.lastUpdatedLabel?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Row {
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Default.Security, contentDescription = "安全")
-                    }
-                    IconButton(onClick = { viewModel.refreshNow() }, enabled = !state.isRefreshing) {
-                        if (state.isRefreshing) {
-                            CircularProgressIndicator(modifier = Modifier.width(18.dp), strokeWidth = 2.dp)
-                        } else {
-                            Icon(Icons.Default.Refresh, contentDescription = "刷新")
-                        }
                     }
                 }
             }
@@ -399,7 +378,13 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface
         ) {
-            PackageDetailSheet(plan = plan, context = context, onClose = { showPlanDetail = false })
+            PackageDetailSheet(
+                plan = plan,
+                context = context,
+                isRefreshing = state.isPlanRefreshing,
+                onRefresh = viewModel::refreshPlanManually,
+                onClose = { showPlanDetail = false }
+            )
         }
     }
 }
@@ -515,20 +500,36 @@ private fun DashboardStatCard(
 
 
 @Composable
-private fun PackageDetailSheet(plan: PlanInfo, context: Context, onClose: () -> Unit) {
+private fun PackageDetailSheet(
+    plan: PlanInfo,
+    context: Context,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    onClose: () -> Unit
+) {
     val daysLeft = plan.daysUntilExpire()
     val dailyBudget = plan.dailyBudget()
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "套餐详情",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "套餐详情",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            TextButton(onClick = onRefresh, enabled = !isRefreshing) {
+                Text(if (isRefreshing) "刷新中..." else "刷新")
+            }
+        }
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 text = plan.packageName,

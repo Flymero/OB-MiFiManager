@@ -150,8 +150,8 @@ class MiFiRepository @Inject constructor(
 
     suspend fun restartDevice(): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            val result = api.restartDevice()
-            Result.success(result.result == "success")
+            api.restartDevice()
+            Result.success(true)
         } catch (e: java.net.SocketException) {
             Result.success(true)
         } catch (e: Exception) {

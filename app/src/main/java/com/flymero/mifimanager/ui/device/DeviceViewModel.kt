@@ -107,7 +107,7 @@ class DeviceViewModel @Inject constructor(
 
     fun changePassword(newPassword: String) {
         viewModelScope.launch {
-            val username = dataStore.getUsername().ifBlank { "admin" }
+            val username = dataStore.getSavedUsername().ifBlank { "admin" }
             val result = repository.changePassword(username, newPassword)
             _state.value = _state.value.copy(
                 actionResult = if (result.getOrNull()?.isSuccess == true) "密码修改成功" else "密码修改失败"

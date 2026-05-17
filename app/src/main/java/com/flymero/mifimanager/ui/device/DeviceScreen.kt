@@ -18,6 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.RestartAlt
@@ -28,6 +30,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,9 +40,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -54,12 +57,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.flymero.mifimanager.data.model.DhcpInfo
 import com.flymero.mifimanager.data.model.HomepageInfo
 import com.flymero.mifimanager.data.model.PlanEquipment
 import com.flymero.mifimanager.data.model.SimCard
 import com.flymero.mifimanager.data.model.SimInfo
 import com.flymero.mifimanager.data.model.WanInfo
+import com.flymero.mifimanager.data.model.WlanMacFiltersInfo
 import com.flymero.mifimanager.ui.components.InfoRow
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.theme.ErrorContainerLight
@@ -80,7 +85,13 @@ fun DeviceScreen(
     var showResetDialog by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showNetworkModeSheet by remember { mutableStateOf(false) }
+    var showAddMacDialog by remember { mutableStateOf(false) }
     var deviceInfoExpanded by remember { mutableStateOf(false) }
+
+    LifecycleResumeEffect(Unit) {
+        viewModel.onResume()
+        onPauseOrDispose { }
+    }
 
     LaunchedEffect(state.actionResult) {
         state.actionResult?.let {
@@ -109,7 +120,7 @@ fun DeviceScreen(
     val simInfo = state.simInfo
     val firmware = state.firmwareInfo
     val planEquipment = state.planEquipment
-    val networkOptions = networkModeOptions()
+    val networkOptions = networkModeOptions(wan.nwModeDefault)
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -150,6 +161,14 @@ fun DeviceScreen(
             )
 
             DhcpCard(dhcp = dhcp)
+
+            MacBlacklistCard(
+                macFilters = state.macFiltersInfo,
+                isSyncing = state.isMacFilterSyncing,
+                onToggleEnabled = viewModel::setMacBlacklistEnabled,
+                onAddMac = { showAddMacDialog = true },
+                onRemoveMac = viewModel::removeMacFromBlacklist
+            )
 
             ActionsCard(
                 onChangePassword = { showPasswordDialog = true },
@@ -290,6 +309,47 @@ fun DeviceScreen(
                 ) { Text("保存") }
             },
             dismissButton = { TextButton(onClick = { showPasswordDialog = false }) { Text("取消") } }
+        )
+    }
+
+    if (showAddMacDialog) {
+        var macAddress by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAddMacDialog = false },
+            title = { Text("添加黑名单 MAC") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = macAddress,
+                        onValueChange = { macAddress = it.uppercase().replace('，', ',') },
+                        label = { Text("MAC 地址") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Text(
+                        text = "示例：AA:BB:CC:DD:EE:FF",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (state.macFiltersInfo.currentDeviceMac.isNotBlank()) {
+                        Text(
+                            text = "当前设备 MAC：${state.macFiltersInfo.currentDeviceMac}，不会允许加入黑名单",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showAddMacDialog = false
+                        viewModel.addMacToBlacklist(macAddress)
+                    },
+                    enabled = isValidMacAddress(macAddress)
+                ) { Text("添加") }
+            },
+            dismissButton = { TextButton(onClick = { showAddMacDialog = false }) { Text("取消") } }
         )
     }
 }
@@ -452,6 +512,113 @@ private fun DhcpCard(dhcp: DhcpInfo) {
 }
 
 @Composable
+private fun MacBlacklistCard(
+    macFilters: WlanMacFiltersInfo,
+    isSyncing: Boolean,
+    onToggleEnabled: (Boolean) -> Unit,
+    onAddMac: () -> Unit,
+    onRemoveMac: (Int) -> Unit
+) {
+    ManagementCard(title = "MAC 黑名单管理") {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "总开关",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = when {
+                        isSyncing -> "重连后正在同步…"
+                        macFilters.isEnabled() -> "已启用"
+                        else -> "未启用"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = macFilters.isEnabled(),
+                onCheckedChange = onToggleEnabled,
+                enabled = !isSyncing
+            )
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        InfoRow("过滤模式", "黑名单模式")
+
+        if (isSyncing) {
+            Text(
+                text = "已提交到路由器，重连后会自动刷新这里的状态。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        } else if (!macFilters.isEnabled()) {
+            Text(
+                text = "当前未生效，开启后才会按黑名单拦截。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        Text(
+            text = "已加入的 MAC 列表",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        if (macFilters.blacklistEntries().isEmpty()) {
+            Text(
+                text = if (isSyncing) "列表同步中…" else "暂无黑名单 MAC",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        } else {
+            macFilters.blacklistEntries().forEachIndexed { index, entry ->
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = entry.mac.ifBlank { "--" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = { onRemoveMac(index) },
+                        enabled = !isSyncing
+                    ) {
+                        Icon(Icons.Default.DeleteOutline, contentDescription = null)
+                        Text(" 删除")
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onAddMac,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isSyncing
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Text("  手动添加")
+        }
+    }
+}
+
+@Composable
 private fun ActionsCard(
     onChangePassword: () -> Unit,
     onRestart: () -> Unit,
@@ -548,16 +715,49 @@ private fun CopyInfoRow(label: String, value: String, context: Context) {
     KeyValueRow(
         label = label,
         value = value,
+        valueMaxLines = 2,
         onCopy = { if (value.isNotBlank() && value != "--") copyToClipboard(context, label, value) }
     )
 }
 
-private fun networkModeOptions(): List<NetworkModeOption> = listOf(
-    NetworkModeOption("3", "自动"),
-    NetworkModeOption("2", "仅 4G"),
-    NetworkModeOption("1", "仅 3G"),
-    NetworkModeOption("0", "仅 2G")
-)
+private fun networkModeOptions(defaultMode: String): List<NetworkModeOption> = when (defaultMode) {
+    "2" -> listOf(
+        NetworkModeOption("2", "仅 4G")
+    )
+    "3" -> listOf(
+        NetworkModeOption("2", "仅 4G"),
+        NetworkModeOption("3", "4G/3G 自动"),
+        NetworkModeOption("5", "仅 3G")
+    )
+    "8" -> listOf(
+        NetworkModeOption("2", "仅 4G"),
+        NetworkModeOption("8", "4G/2G 自动"),
+        NetworkModeOption("6", "仅 2G")
+    )
+    "4" -> listOf(
+        NetworkModeOption("5", "仅 3G"),
+        NetworkModeOption("4", "3G/2G 自动"),
+        NetworkModeOption("6", "仅 2G")
+    )
+    "5" -> listOf(
+        NetworkModeOption("5", "仅 3G")
+    )
+    "6" -> listOf(
+        NetworkModeOption("6", "仅 2G")
+    )
+    "7" -> listOf(
+        NetworkModeOption("7", "关闭移动网络")
+    )
+    else -> listOf(
+        NetworkModeOption("1", "自动"),
+        NetworkModeOption("2", "仅 4G"),
+        NetworkModeOption("3", "4G/3G 自动"),
+        NetworkModeOption("5", "仅 3G")
+    )
+}
+
+private fun isValidMacAddress(value: String): Boolean =
+    Regex("^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$").matches(value.trim())
 
 private fun isCurrentSim(
     simInfo: SimInfo,

@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.flymero.mifimanager.data.model.WpsInfo
 import com.flymero.mifimanager.ui.components.CardTitle
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.components.SectionCard
@@ -62,6 +63,9 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
     var wifiEnabled by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.wlanEnable == "1") }
     var apIsolate by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.apIsolate == "1") }
     var ssidBroadcast by remember(state.securityInfo) { mutableStateOf(state.securityInfo.ssidBcast == "1") }
+    var autoOffEnabled by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.wifiSleepTime != "0") }
+    var autoOffMinutes by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.wifiSleepTime.takeUnless { it == "0" }.orEmpty()) }
+    var wpsPin by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.saveResult) {
@@ -81,6 +85,7 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
     }
 
     val modes = listOf("Mixed", "WPA2-PSK", "WPA-PSK", "WPA3-SAE", "WPA2-WPA3")
+    val autoOffError = autoOffMinutesError(autoOffEnabled, autoOffMinutes)
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -258,10 +263,134 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                     Text("保存高级设置")
                 }
             }
+
+            SectionCard {
+                CardTitle("WiFi 自动关闭")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "启用定时关闭",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (autoOffEnabled) "到时后自动关闭 WiFi" else "当前不启用定时关闭",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = autoOffEnabled,
+                        onCheckedChange = {
+                            autoOffEnabled = it
+                            if (it && autoOffMinutes.isBlank()) autoOffMinutes = "10"
+                        }
+                    )
+                }
+                if (autoOffEnabled) {
+                    SectionDivider()
+                    OutlinedTextField(
+                        value = autoOffMinutes,
+                        onValueChange = { autoOffMinutes = it.filter(Char::isDigit).take(2) },
+                        label = { Text("关闭前等待时间（分钟）") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = { Text(autoOffError ?: "支持 10-60 分钟") },
+                        isError = autoOffError != null,
+                        shape = MaterialTheme.shapes.large
+                    )
+                }
+                Button(
+                    onClick = { viewModel.saveWifiAutoOff(autoOffEnabled, autoOffMinutes) },
+                    enabled = !state.isSaving && autoOffError == null,
+                    modifier = Modifier.align(Alignment.End),
+                    shape = CircleShape
+                ) {
+                    Text("保存定时设置")
+                }
+            }
+
+            WpsCard(
+                wpsInfo = state.wpsInfo,
+                wpsPin = wpsPin,
+                isSaving = state.isSaving,
+                onPinChange = { wpsPin = it },
+                onStartPushButton = viewModel::startWpsPushButton,
+                onStartPin = { viewModel.startWpsPin(wpsPin) },
+                onCancel = viewModel::cancelWps
+            )
         }
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
     }
+}
+
+@Composable
+private fun WpsCard(
+    wpsInfo: WpsInfo,
+    wpsPin: String,
+    isSaving: Boolean,
+    onPinChange: (String) -> Unit,
+    onStartPushButton: () -> Unit,
+    onStartPin: () -> Unit,
+    onCancel: () -> Unit
+) {
+    SectionCard {
+        CardTitle("WPS")
+        KeyValueRow("当前状态", wpsInfo.statusText())
+        SectionDivider()
+        Button(
+            onClick = onStartPushButton,
+            enabled = !isSaving && !wpsInfo.isMatching(),
+            modifier = Modifier.fillMaxWidth(),
+            shape = CircleShape
+        ) {
+            Text("开始一键配对")
+        }
+        OutlinedTextField(
+            value = wpsPin,
+            onValueChange = { value ->
+                onPinChange(value.filter { it.isDigit() || it == '-' }.take(9))
+            },
+            label = { Text("WPS PIN") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            supportingText = { Text("支持 4 位、8 位，或 1234-5678") }
+        )
+        Button(
+            onClick = onStartPin,
+            enabled = !isSaving && isValidWpsPin(wpsPin) && !wpsInfo.isMatching(),
+            modifier = Modifier.fillMaxWidth(),
+            shape = CircleShape
+        ) {
+            Text("使用 PIN 配对")
+        }
+        if (wpsInfo.isMatching()) {
+            Button(
+                onClick = onCancel,
+                enabled = !isSaving,
+                modifier = Modifier.fillMaxWidth(),
+                shape = CircleShape
+            ) {
+                Text("取消配对")
+            }
+        }
+    }
+}
+
+private fun isValidWpsPin(pin: String): Boolean {
+    val normalized = pin.replace("-", "")
+    return normalized.length in listOf(4, 8) && normalized.all { it.isDigit() }
+}
+
+private fun autoOffMinutesError(enabled: Boolean, minutes: String): String? {
+    if (!enabled) return null
+    val value = minutes.toIntOrNull() ?: return "请输入 10-60 分钟"
+    return if (value in 10..60) null else "请输入 10-60 分钟"
 }

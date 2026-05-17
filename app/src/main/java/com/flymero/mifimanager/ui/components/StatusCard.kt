@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -105,21 +106,20 @@ fun KeyValueRow(
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(0.36f)
         )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.weight(1f)
+        Column(
+            modifier = Modifier.weight(0.64f),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyMedium,
@@ -128,28 +128,34 @@ fun KeyValueRow(
                 maxLines = valueMaxLines,
                 overflow = TextOverflow.Ellipsis
             )
-            onCopy?.let {
-                IconButton(
-                    onClick = it,
-                    modifier = Modifier.size(28.dp),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                onCopy?.let {
+                    IconButton(
+                        onClick = it,
+                        modifier = Modifier.size(28.dp),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "复制",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                if (showChevron) {
                     Icon(
-                        imageVector = Icons.Default.ContentCopy,
-                        contentDescription = "复制",
-                        modifier = Modifier.size(16.dp)
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(20.dp)
                     )
                 }
-            }
-            if (showChevron) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }
@@ -274,6 +280,12 @@ fun StatusCard(
     )
 }
 
+data class DeviceMenuItem(
+    val label: String,
+    val onClick: () -> Unit,
+    val enabled: Boolean = true
+)
+
 @Composable
 fun DeviceListItem(
     name: String,
@@ -282,12 +294,15 @@ fun DeviceListItem(
     statusText: String,
     statusColor: Color,
     isBlocked: Boolean,
-    menuItems: List<Pair<String, () -> Unit>>,
-    modifier: Modifier = Modifier
+    menuItems: List<DeviceMenuItem>,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = MaterialTheme.shapes.large,
         color = if (isBlocked) ErrorContainerLight else MaterialTheme.colorScheme.surface,
         border = BorderStroke(
@@ -357,12 +372,13 @@ fun DeviceListItem(
                         Icon(Icons.Default.MoreVert, contentDescription = "更多")
                     }
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        menuItems.forEach { (label, action) ->
+                        menuItems.forEach { item ->
                             DropdownMenuItem(
-                                text = { Text(label) },
+                                text = { Text(item.label) },
+                                enabled = item.enabled,
                                 onClick = {
                                     expanded = false
-                                    action()
+                                    item.onClick()
                                 }
                             )
                         }

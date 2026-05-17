@@ -1,6 +1,7 @@
 package com.flymero.mifimanager.data.model
 
 import com.google.gson.annotations.SerializedName
+import java.math.BigInteger
 
 data class DeviceManagementInfo(
     @SerializedName("known_devices_list") val knownDevicesList: List<ConnectedDevice> = emptyList(),
@@ -35,8 +36,13 @@ data class ClientDevice(
     @SerializedName("ct") val connType: String = "",
     @SerializedName("ip") val ip: String = "",
     @SerializedName("ta") val timeAdded: String = "",
+    @SerializedName("tf") val totalConnectionSeconds: String = "0",
     @SerializedName("rx") val rx: String = "0",
-    @SerializedName("tx") val tx: String = "0"
+    @SerializedName("tx") val tx: String = "0",
+    @SerializedName("rxm") val rxMonth: String = "0",
+    @SerializedName("txm") val txMonth: String = "0",
+    @SerializedName("rx3") val rxLast3Days: String = "0",
+    @SerializedName("tx3") val txLast3Days: String = "0"
 ) {
     fun isOnline(): Boolean = status == "1"
 
@@ -50,4 +56,32 @@ data class ClientDevice(
             trimmed
         }
     }
+
+    fun statusText(): String = when (status) {
+        "1" -> "在线"
+        "2" -> "已屏蔽"
+        else -> "离线"
+    }
+
+    fun formattedConnectionDuration(): String {
+        val seconds = totalConnectionSeconds.toLongOrNull() ?: return totalConnectionSeconds.ifBlank { "--" }
+        val days = seconds / 86400
+        val hours = (seconds % 86400) / 3600
+        val minutes = (seconds % 3600) / 60
+        val remainSeconds = seconds % 60
+        return buildList {
+            if (days > 0) add("${days}天")
+            if (hours > 0 || days > 0) add("${hours}小时")
+            if (minutes > 0 || hours > 0 || days > 0) add("${minutes}分钟")
+            add("${remainSeconds}秒")
+        }.joinToString("")
+    }
+
+    fun hasTrafficActivity(): Boolean = trafficFields().any { value ->
+        value.toBigIntegerOrNull()?.let { it > BigInteger.ZERO } == true
+    }
+
+    fun trafficActivityText(): String = if (hasTrafficActivity()) "有记录" else "暂无记录"
+
+    private fun trafficFields(): List<String> = listOf(rx, tx, rxMonth, txMonth, rxLast3Days, txLast3Days)
 }

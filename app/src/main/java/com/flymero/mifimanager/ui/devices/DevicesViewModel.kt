@@ -3,6 +3,7 @@ package com.flymero.mifimanager.ui.devices
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flymero.mifimanager.data.model.DeviceManagementInfo
+import com.flymero.mifimanager.data.model.WlanMacFiltersInfo
 import com.flymero.mifimanager.data.repository.MiFiRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,6 +13,7 @@ import javax.inject.Inject
 
 data class DevicesState(
     val deviceInfo: DeviceManagementInfo = DeviceManagementInfo(),
+    val macFiltersInfo: WlanMacFiltersInfo = WlanMacFiltersInfo(),
     val isLoading: Boolean = true,
     val actionResult: String? = null
 )
@@ -28,15 +30,22 @@ class DevicesViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
-            val result = repository.getDeviceManagementInfo()
+            val deviceResult = repository.getDeviceManagementInfo()
+            val macFiltersResult = repository.getWlanMacFiltersInfo()
             _state.value = _state.value.copy(
-                deviceInfo = result.getOrDefault(DeviceManagementInfo()),
+                deviceInfo = deviceResult.getOrDefault(DeviceManagementInfo()),
+                macFiltersInfo = macFiltersResult.getOrDefault(WlanMacFiltersInfo()),
                 isLoading = false
             )
         }
     }
 
     fun blockDevice(mac: String) {
+        val normalizedMac = mac.trim().replace('-', ':').uppercase()
+        if (normalizedMac == _state.value.macFiltersInfo.normalizedCurrentDeviceMac()) {
+            _state.value = _state.value.copy(actionResult = "不能屏蔽当前设备")
+            return
+        }
         viewModelScope.launch {
             val result = repository.blockDevice(mac)
             _state.value = _state.value.copy(

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +61,7 @@ import com.flymero.mifimanager.ui.theme.ErrorLight
 import com.flymero.mifimanager.ui.theme.Success
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DevicesScreen(
     onNavigateToAuth: () -> Unit = {},
@@ -296,7 +298,7 @@ private fun DeviceCategoryTab(
 private fun ClientDeviceItem(
     device: ClientDevice,
     statusText: String,
-    statusColor: androidx.compose.ui.graphics.Color,
+    statusColor: Color,
     isBlocked: Boolean,
     context: Context,
     viewModel: DevicesViewModel,

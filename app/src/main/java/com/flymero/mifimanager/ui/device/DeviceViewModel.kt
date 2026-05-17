@@ -18,6 +18,7 @@ data class DeviceState(
     val apnInfo: ApnProfileInfo = ApnProfileInfo(),
     val simInfo: SimInfo = SimInfo(),
     val firmwareInfo: FirmwareInfo = FirmwareInfo(),
+    val macFiltersInfo: WlanMacFiltersInfo = WlanMacFiltersInfo(),
     val planEquipment: PlanEquipment? = null,
     val isLoading: Boolean = true,
     val isPlanLoading: Boolean = false,
@@ -44,6 +45,7 @@ class DeviceViewModel @Inject constructor(
             val apn = repository.getApnProfileInfo()
             val sim = repository.getSimInfo()
             val firmware = repository.getFirmwareInfo()
+            val macFilters = repository.getWlanMacFiltersInfo()
 
             _state.value = _state.value.copy(
                 homepageInfo = homepage.getOrDefault(HomepageInfo()),
@@ -52,6 +54,7 @@ class DeviceViewModel @Inject constructor(
                 apnInfo = apn.getOrDefault(ApnProfileInfo()),
                 simInfo = sim.getOrDefault(SimInfo()),
                 firmwareInfo = firmware.getOrDefault(FirmwareInfo()),
+                macFiltersInfo = macFilters.getOrDefault(WlanMacFiltersInfo()),
                 isLoading = false,
                 isPlanLoading = true
             )
@@ -64,6 +67,7 @@ class DeviceViewModel @Inject constructor(
             )
         }
     }
+
 
     fun setNetworkMode(mode: String) {
         viewModelScope.launch {
@@ -112,6 +116,43 @@ class DeviceViewModel @Inject constructor(
             _state.value = _state.value.copy(
                 actionResult = if (result.getOrNull()?.isSuccess == true) "密码修改成功" else "密码修改失败"
             )
+        }
+    }
+
+    fun setMacBlacklistEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            val result = repository.setMacBlacklistEnabled(_state.value.macFiltersInfo, enabled)
+            _state.value = _state.value.copy(
+                actionResult = if (result.getOrNull()?.isSuccess == true) {
+                    if (enabled) "MAC 黑名单已开启" else "MAC 黑名单已关闭"
+                } else "MAC 黑名单设置失败"
+            )
+            refresh()
+        }
+    }
+
+    fun addMacToBlacklist(mac: String) {
+        val normalizedMac = mac.trim().replace('-', ':').uppercase()
+        if (normalizedMac == _state.value.macFiltersInfo.normalizedCurrentDeviceMac()) {
+            _state.value = _state.value.copy(actionResult = "不能将当前设备加入黑名单")
+            return
+        }
+        viewModelScope.launch {
+            val result = repository.addMacToBlacklist(_state.value.macFiltersInfo, mac)
+            _state.value = _state.value.copy(
+                actionResult = if (result.getOrNull()?.isSuccess == true) "MAC 已加入黑名单" else "添加失败"
+            )
+            refresh()
+        }
+    }
+
+    fun removeMacFromBlacklist(index: Int) {
+        viewModelScope.launch {
+            val result = repository.removeMacFromBlacklist(_state.value.macFiltersInfo, index)
+            _state.value = _state.value.copy(
+                actionResult = if (result.getOrNull()?.isSuccess == true) "MAC 已移除" else "删除失败"
+            )
+            refresh()
         }
     }
 

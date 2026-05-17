@@ -50,6 +50,9 @@ interface MiFiApi {
     suspend fun getWlanMacFiltersInfo(@Query("file") file: String = "json_wlan_mac_filters_info"): WlanMacFiltersInfo
 
     @GET("xml_action.cgi?method=get&module=duster")
+    suspend fun getWlanWpsInfo(@Query("file") file: String = "json_wlan_wps_info"): WpsInfo
+
+    @GET("xml_action.cgi?method=get&module=duster")
     suspend fun getAccountManagementInfo(@Query("file") file: String = "json_account_management_info"): AccountManagementInfo
 
     @GET("xml_action.cgi?method=get&module=duster")

@@ -111,6 +111,7 @@ class MiFiRepository @Inject constructor(
     suspend fun getFirmwareInfo(): Result<FirmwareInfo> = runCatching { api.getFirmwareInfo() }
     suspend fun getCustomFwInfo(): Result<CustomFwInfo> = runCatching { api.getCustomFwInfo() }
     suspend fun getWlanMacFiltersInfo(): Result<WlanMacFiltersInfo> = runCatching { api.getWlanMacFiltersInfo() }
+    suspend fun getWlanWpsInfo(): Result<WpsInfo> = runCatching { api.getWlanWpsInfo() }
     suspend fun getAccountManagementInfo(): Result<AccountManagementInfo> = runCatching { api.getAccountManagementInfo() }
     suspend fun getStatisticsInfo(): Result<StatisticsInfo> = runCatching { api.getStatisticsInfo() }
     suspend fun getSimInfo(): Result<SimInfo> = runCatching { api.getSimInfo() }
@@ -203,6 +204,41 @@ class MiFiRepository @Inject constructor(
     suspend fun clearTrafficStats(): Result<ApiResult> =
         runCatching { api.setStatistics(jsonBody(mapOf("clear" to "1"))) }
 
+    suspend fun setMacBlacklistEnabled(currentInfo: WlanMacFiltersInfo, enabled: Boolean): Result<ApiResult> =
+        setWlanMacFilters(
+            linkedMapOf(
+                "enable" to if (enabled) "1" else "0",
+                "mode" to "2",
+                "deny_list" to currentInfo.blacklistEntries().map { mapOf("mac" to it.mac) }
+            )
+        )
+
+    suspend fun addMacToBlacklist(currentInfo: WlanMacFiltersInfo, mac: String): Result<ApiResult> {
+        val normalizedMac = normalizeMacAddress(mac)
+        val entries = currentInfo.blacklistEntries().map { it.mac.uppercase() }.toMutableList()
+        if (entries.any { it.equals(normalizedMac, ignoreCase = true) }) {
+            return Result.success(ApiResult())
+        }
+        entries += normalizedMac
+        return setWlanMacFilters(
+            linkedMapOf(
+                "enable" to if (currentInfo.isEnabled()) "1" else "0",
+                "mode" to "2",
+                "deny_list" to entries.map { mapOf("mac" to it) }
+            )
+        )
+    }
+
+    suspend fun removeMacFromBlacklist(currentInfo: WlanMacFiltersInfo, index: Int): Result<ApiResult> =
+        setWlanMacFilters(
+            linkedMapOf(
+                "enable" to if (currentInfo.isEnabled()) "1" else "0",
+                "mode" to "2",
+                "deny_delete_index" to index.toString(),
+                "deny_list" to currentInfo.blacklistEntries().map { mapOf("mac" to it.mac) }
+            )
+        )
+
     suspend fun changePassword(username: String, newPassword: String): Result<ApiResult> =
         runCatching {
             api.setAccountManagement(jsonBody(mapOf(
@@ -241,6 +277,20 @@ class MiFiRepository @Inject constructor(
         api.setWlanSecurity(jsonBody(data))
     }
 
+    suspend fun startWpsPushButton(): Result<ApiResult> =
+        setWlanSecurity(linkedMapOf("connect_method" to "1"))
+
+    suspend fun startWpsPin(pin: String): Result<ApiResult> =
+        setWlanSecurity(
+            linkedMapOf(
+                "connect_method" to "2",
+                "wps_pin" to normalizeWpsPin(pin)
+            )
+        )
+
+    suspend fun cancelWps(): Result<ApiResult> =
+        setWlanSecurity(linkedMapOf("connect_method" to "3"))
+
     suspend fun saveWifiSettings(
         currentWlanInfo: WlanInfo,
         wlanEnable: Boolean,
@@ -262,6 +312,14 @@ class MiFiRepository @Inject constructor(
             api.setWlan(jsonBody(data))
         }
     }
+
+    suspend fun saveWifiAutoOff(sleepMinutes: String): Result<ApiResult> =
+        setWlan(
+            linkedMapOf(
+                "wifi_sleep_time" to sleepMinutes,
+                "wifi_sleep_action" to "1"
+            )
+        )
 
     suspend fun setNetworkMode(currentWanInfo: WanInfo, mode: String): Result<ApiResult> = runCatching {
         val data = linkedMapOf<String, Any>(
@@ -294,6 +352,12 @@ class MiFiRepository @Inject constructor(
     }
 
     private fun encodeValue(value: String): String = java.net.URLEncoder.encode(value, Charsets.UTF_8.name())
+
+    private fun normalizeMacAddress(value: String): String =
+        value.trim().replace('-', ':').uppercase()
+
+    private fun normalizeWpsPin(value: String): String =
+        value.trim().replace("-", "")
 
     private fun currentSecurityModeValue(info: WlanSecurityInfo, mode: String): String? = when (mode) {
         "WPA2-PSK" -> info.wpa2Psk?.mode

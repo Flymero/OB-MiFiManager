@@ -18,12 +18,35 @@ data class FirewallRule(
 )
 
 data class WlanMacFiltersInfo(
-    @SerializedName("mac_filter_enable") val macFilterEnable: String = "",
-    @SerializedName("mac_filter_policy") val macFilterPolicy: String = "",
-    @SerializedName("mac_filter_list") val macFilterList: List<MacFilter> = emptyList()
+    @SerializedName("enable") val enable: String = "",
+    @SerializedName("mode") val mode: String = "",
+    @SerializedName("allow_list") val allowList: List<MacFilterEntry> = emptyList(),
+    @SerializedName("deny_list") val denyList: List<MacFilterEntry> = emptyList(),
+    @SerializedName("currnet_device_mac") val currentDeviceMac: String = ""
+) {
+    fun isEnabled(): Boolean = enable == "1"
+    fun isBlacklistMode(): Boolean = mode == "2"
+    fun blacklistEntries(): List<MacFilterEntry> = denyList
+    fun normalizedCurrentDeviceMac(): String = currentDeviceMac.trim().replace('-', ':').uppercase()
+}
+
+data class MacFilterEntry(
+    @SerializedName("mac") val mac: String = ""
 )
 
-data class MacFilter(
-    @SerializedName("mac") val mac: String = "",
-    @SerializedName("name") val name: String = ""
-)
+data class WpsInfo(
+    @SerializedName("wps_status") val wpsStatus: String = ""
+) {
+    fun statusText(): String = when (wpsStatus) {
+        "0" -> "WiFi 关闭或不可用"
+        "1" -> "配对中"
+        "2" -> "配对成功"
+        "3" -> "配对失败"
+        "4" -> "已中断"
+        "5" -> "PIN 校验失败"
+        else -> "未知状态"
+    }
+
+    fun isMatching(): Boolean = wpsStatus == "1"
+}
+

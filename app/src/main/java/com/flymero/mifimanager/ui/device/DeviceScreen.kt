@@ -57,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.flymero.mifimanager.data.model.DhcpInfo
 import com.flymero.mifimanager.data.model.HomepageInfo
 import com.flymero.mifimanager.data.model.PlanEquipment
@@ -86,6 +87,11 @@ fun DeviceScreen(
     var showNetworkModeSheet by remember { mutableStateOf(false) }
     var showAddMacDialog by remember { mutableStateOf(false) }
     var deviceInfoExpanded by remember { mutableStateOf(false) }
+
+    LifecycleResumeEffect(Unit) {
+        viewModel.onResume()
+        onPauseOrDispose { }
+    }
 
     LaunchedEffect(state.actionResult) {
         state.actionResult?.let {

@@ -27,7 +27,9 @@ data class DashboardState(
     val cellularConnecting: Boolean = false,
     val isPlanRefreshing: Boolean = false,
     val refreshMessage: String? = null,
-    val bandSummary: String = "--"
+    val bandSummary: String = "--",
+    val routerReachable: Boolean = true,
+    val lastReachableAtLeastOnce: Boolean = false
 )
 
 @HiltViewModel
@@ -84,7 +86,7 @@ class DashboardViewModel @Inject constructor(
         val status = statusResult.getOrDefault(_state.value.statusInfo)
 
         val apiUptime = status.runSeconds.toLongOrNull() ?: 0
-        if (apiUptime != lastApiUptime) {
+        if (statusResult.isSuccess && apiUptime != lastApiUptime) {
             lastApiUptime = apiUptime
             _state.value = _state.value.copy(localUptimeSeconds = apiUptime)
         }
@@ -92,7 +94,9 @@ class DashboardViewModel @Inject constructor(
         _state.value = _state.value.copy(
             statusInfo = status,
             isLoading = false,
-            error = statusResult.exceptionOrNull()?.message
+            error = statusResult.exceptionOrNull()?.message,
+            routerReachable = statusResult.isSuccess,
+            lastReachableAtLeastOnce = _state.value.lastReachableAtLeastOnce || statusResult.isSuccess
         )
     }
 

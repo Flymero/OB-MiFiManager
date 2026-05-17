@@ -9,6 +9,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketException
+import java.net.UnknownHostException
 import javax.inject.Inject
 
 data class DeviceState(
@@ -54,7 +58,7 @@ class DeviceViewModel @Inject constructor(
                 apnInfo = apn.getOrDefault(ApnProfileInfo()),
                 simInfo = sim.getOrDefault(SimInfo()),
                 firmwareInfo = firmware.getOrDefault(FirmwareInfo()),
-                macFiltersInfo = macFilters.getOrDefault(WlanMacFiltersInfo()),
+                macFiltersInfo = macFilters.getOrDefault(_state.value.macFiltersInfo),
                 isLoading = false,
                 isPlanLoading = true
             )
@@ -68,6 +72,9 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
+    fun onResume() {
+        refresh()
+    }
 
     fun setNetworkMode(mode: String) {
         viewModelScope.launch {
@@ -121,12 +128,22 @@ class DeviceViewModel @Inject constructor(
 
     fun setMacBlacklistEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            val result = repository.setMacBlacklistEnabled(_state.value.macFiltersInfo, enabled)
+            val previous = _state.value.macFiltersInfo
             _state.value = _state.value.copy(
-                actionResult = if (result.getOrNull()?.isSuccess == true) {
-                    if (enabled) "MAC 黑名单已开启" else "MAC 黑名单已关闭"
-                } else "MAC 黑名单设置失败"
+                macFiltersInfo = previous.copy(enable = if (enabled) "1" else "0")
             )
+
+            val result = repository.setMacBlacklistEnabled(previous, enabled)
+            val exception = result.exceptionOrNull()
+            val actionResult = when {
+                result.getOrNull()?.isSuccess == true -> if (enabled) "MAC 黑名单已开启" else "MAC 黑名单已关闭"
+                exception.isDisconnectDuringApply() -> if (enabled) "MAC 黑名单已开启，请重新连接 Wi‑Fi 后确认" else "MAC 黑名单已关闭，请重新连接 Wi‑Fi 后确认"
+                else -> {
+                    _state.value = _state.value.copy(macFiltersInfo = previous)
+                    "MAC 黑名单设置失败"
+                }
+            }
+            _state.value = _state.value.copy(actionResult = actionResult)
             refresh()
         }
     }
@@ -168,5 +185,11 @@ class DeviceViewModel @Inject constructor(
 
     fun clearResult() {
         _state.value = _state.value.copy(actionResult = null)
+    }
+
+    private fun Throwable?.isDisconnectDuringApply(): Boolean = when (this) {
+        is SocketException, is ConnectException, is UnknownHostException -> true
+        is IOException -> true
+        else -> false
     }
 }

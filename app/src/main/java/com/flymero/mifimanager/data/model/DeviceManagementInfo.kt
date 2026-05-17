@@ -77,27 +77,11 @@ data class ClientDevice(
         }.joinToString("")
     }
 
-    fun formattedRx(): String = formatTrafficValue(rx)
-    fun formattedTx(): String = formatTrafficValue(tx)
-    fun formattedRxMonth(): String = formatTrafficValue(rxMonth)
-    fun formattedTxMonth(): String = formatTrafficValue(txMonth)
-    fun formattedRxLast3Days(): String = formatTrafficValue(rxLast3Days)
-    fun formattedTxLast3Days(): String = formatTrafficValue(txLast3Days)
-
-    fun isTrafficValueSuspicious(value: String): Boolean {
-        val numeric = value.toBigIntegerOrNull() ?: return true
-        return numeric > BigInteger.valueOf(Long.MAX_VALUE)
+    fun hasTrafficActivity(): Boolean = trafficFields().any { value ->
+        value.toBigIntegerOrNull()?.let { it > BigInteger.ZERO } == true
     }
 
-    private fun formatTrafficValue(value: String): String {
-        val numeric = value.toBigIntegerOrNull() ?: return value.ifBlank { "--" }
-        if (numeric > BigInteger.valueOf(Long.MAX_VALUE)) return value
-        val bytes = numeric.toLong()
-        return when {
-            bytes >= 1073741824L -> "%.2f GB".format(bytes / 1073741824.0)
-            bytes >= 1048576L -> "%.2f MB".format(bytes / 1048576.0)
-            bytes >= 1024L -> "%.2f KB".format(bytes / 1024.0)
-            else -> "$bytes B"
-        }
-    }
+    fun trafficActivityText(): String = if (hasTrafficActivity()) "有记录" else "暂无记录"
+
+    private fun trafficFields(): List<String> = listOf(rx, tx, rxMonth, txMonth, rxLast3Days, txLast3Days)
 }

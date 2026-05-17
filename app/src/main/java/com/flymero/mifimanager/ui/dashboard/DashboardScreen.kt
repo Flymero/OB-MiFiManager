@@ -130,6 +130,21 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
         batteryPercent <= 50 -> BatteryMedium
         else -> Success
     }
+    val connectionChipText = when {
+        !state.routerReachable && state.lastReachableAtLeastOnce -> "不可达"
+        homepage.connectDisconnect == "cellular" -> "已连接"
+        else -> "未连接"
+    }
+    val connectionChipColor = when {
+        !state.routerReachable && state.lastReachableAtLeastOnce -> Warning
+        homepage.connectDisconnect == "cellular" -> Success
+        else -> Warning
+    }
+    val connectionChipContainer = when {
+        !state.routerReachable && state.lastReachableAtLeastOnce -> WarningContainer
+        homepage.connectDisconnect == "cellular" -> SuccessContainer
+        else -> WarningContainer
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -160,9 +175,9 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         StatusChip(
-                            text = if (homepage.connectDisconnect == "cellular") "已连接" else "未连接",
-                            color = if (homepage.connectDisconnect == "cellular") Success else Warning,
-                            containerColor = if (homepage.connectDisconnect == "cellular") SuccessContainer else WarningContainer
+                            text = connectionChipText,
+                            color = connectionChipColor,
+                            containerColor = connectionChipContainer
                         )
                     }
                 }
@@ -344,15 +359,20 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = if (state.cellularConnecting) "切换中..." else if (homepage.connectDisconnect == "cellular") "已连接" else "已断开",
+                            text = when {
+                                state.cellularConnecting -> "切换中..."
+                                !state.routerReachable && state.lastReachableAtLeastOnce -> "路由器不可达"
+                                homepage.connectDisconnect == "cellular" -> "已连接"
+                                else -> "已断开"
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(
-                        checked = homepage.connectDisconnect == "cellular",
+                        checked = state.routerReachable && homepage.connectDisconnect == "cellular",
                         onCheckedChange = { viewModel.toggleCellular(it) },
-                        enabled = !state.cellularConnecting
+                        enabled = !state.cellularConnecting && state.routerReachable
                     )
                 }
                 SectionDivider()

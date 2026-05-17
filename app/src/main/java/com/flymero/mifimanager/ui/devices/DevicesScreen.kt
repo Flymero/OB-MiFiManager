@@ -54,6 +54,7 @@ import com.flymero.mifimanager.data.model.ClientDevice
 import com.flymero.mifimanager.data.model.ConnectedDevice
 import com.flymero.mifimanager.ui.components.CardTitle
 import com.flymero.mifimanager.ui.components.DeviceListItem
+import com.flymero.mifimanager.ui.components.DeviceMenuItem
 import com.flymero.mifimanager.ui.components.InfoRow
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.components.SectionCard
@@ -95,6 +96,7 @@ fun DevicesScreen(
         return
     }
 
+    val currentDeviceMac = state.macFiltersInfo.normalizedCurrentDeviceMac()
     val allClients = state.deviceInfo.clientList
     val onlineDevices = allClients.filter { it.status == "1" }
     val blockedDevices = allClients.filter { it.status == "2" }
@@ -186,33 +188,33 @@ fun DevicesScreen(
                     when (page) {
                         0 -> {
                             items(onlineDevices) { device ->
-                                ClientDeviceItem(device, "在线", Success, false, context, viewModel) {
+                                ClientDeviceItem(device, "在线", Success, false, currentDeviceMac, context, viewModel) {
                                     selectedDevice = device
                                 }
                             }
                             items(blockedDevices) { device ->
-                                ClientDeviceItem(device, "已屏蔽", ErrorLight, true, context, viewModel) {
+                                ClientDeviceItem(device, "已屏蔽", ErrorLight, true, currentDeviceMac, context, viewModel) {
                                     selectedDevice = device
                                 }
                             }
                             items(offlineDevices) { device ->
-                                ClientDeviceItem(device, "离线", MaterialTheme.colorScheme.onSurfaceVariant, false, context, viewModel) {
+                                ClientDeviceItem(device, "离线", MaterialTheme.colorScheme.onSurfaceVariant, false, currentDeviceMac, context, viewModel) {
                                     selectedDevice = device
                                 }
                             }
                         }
                         1 -> items(onlineDevices) { device ->
-                            ClientDeviceItem(device, "在线", Success, false, context, viewModel) {
+                            ClientDeviceItem(device, "在线", Success, false, currentDeviceMac, context, viewModel) {
                                 selectedDevice = device
                             }
                         }
                         2 -> items(blockedDevices) { device ->
-                            ClientDeviceItem(device, "已屏蔽", ErrorLight, true, context, viewModel) {
+                            ClientDeviceItem(device, "已屏蔽", ErrorLight, true, currentDeviceMac, context, viewModel) {
                                 selectedDevice = device
                             }
                         }
                         3 -> items(offlineDevices) { device ->
-                            ClientDeviceItem(device, "离线", MaterialTheme.colorScheme.onSurfaceVariant, false, context, viewModel) {
+                            ClientDeviceItem(device, "离线", MaterialTheme.colorScheme.onSurfaceVariant, false, currentDeviceMac, context, viewModel) {
                                 selectedDevice = device
                             }
                         }
@@ -300,10 +302,12 @@ private fun ClientDeviceItem(
     statusText: String,
     statusColor: Color,
     isBlocked: Boolean,
+    currentDeviceMac: String,
     context: Context,
     viewModel: DevicesViewModel,
     onOpenDetails: () -> Unit
 ) {
+    val isCurrentDevice = currentDeviceMac.isNotBlank() && device.mac.trim().replace('-', ':').uppercase() == currentDeviceMac
     DeviceListItem(
         name = device.decodedName(),
         mac = device.mac,
@@ -313,16 +317,22 @@ private fun ClientDeviceItem(
         isBlocked = isBlocked,
         onClick = onOpenDetails,
         menuItems = buildList {
-            add("查看详情" to onOpenDetails)
-            add("复制 MAC" to {
+            add(DeviceMenuItem("查看详情", onOpenDetails))
+            add(DeviceMenuItem("复制 MAC", {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("mac", device.mac))
                 viewModel.showMessage("已复制 MAC 地址")
-            })
+            }))
             if (isBlocked) {
-                add("解除屏蔽" to { viewModel.unblockDevice(device.mac) })
+                add(DeviceMenuItem("解除屏蔽", { viewModel.unblockDevice(device.mac) }))
             } else {
-                add("屏蔽设备" to { viewModel.blockDevice(device.mac) })
+                add(
+                    DeviceMenuItem(
+                        label = "屏蔽设备",
+                        onClick = { viewModel.blockDevice(device.mac) },
+                        enabled = !isCurrentDevice
+                    )
+                )
             }
         }
     )
@@ -368,51 +378,8 @@ private fun DeviceTrafficDetailSheet(
             InfoRow(label = "总连接时长", value = device.formattedConnectionDuration())
             HorizontalDivider()
             InfoRow(label = "最近记录时间", value = device.timeAdded.ifBlank { "--" })
-        }
-
-        SectionCard {
-            CardTitle(title = "累计流量")
-            TrafficInfoRow(label = "累计接收", formattedValue = device.formattedRx(), rawValue = device.rx, suspicious = device.isTrafficValueSuspicious(device.rx))
             HorizontalDivider()
-            TrafficInfoRow(label = "累计发送", formattedValue = device.formattedTx(), rawValue = device.tx, suspicious = device.isTrafficValueSuspicious(device.tx))
-        }
-
-        SectionCard {
-            CardTitle(title = "周期流量")
-            TrafficInfoRow(label = "本月接收", formattedValue = device.formattedRxMonth(), rawValue = device.rxMonth, suspicious = device.isTrafficValueSuspicious(device.rxMonth))
-            HorizontalDivider()
-            TrafficInfoRow(label = "本月发送", formattedValue = device.formattedTxMonth(), rawValue = device.txMonth, suspicious = device.isTrafficValueSuspicious(device.txMonth))
-            HorizontalDivider()
-            TrafficInfoRow(label = "近 3 天接收", formattedValue = device.formattedRxLast3Days(), rawValue = device.rxLast3Days, suspicious = device.isTrafficValueSuspicious(device.rxLast3Days))
-            HorizontalDivider()
-            TrafficInfoRow(label = "近 3 天发送", formattedValue = device.formattedTxLast3Days(), rawValue = device.txLast3Days, suspicious = device.isTrafficValueSuspicious(device.txLast3Days))
-        }
-
-        Text(
-            text = "这些数据来自路由器单设备统计，若数值异常通常是固件上报问题。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-    }
-}
-
-@Composable
-private fun TrafficInfoRow(
-    label: String,
-    formattedValue: String,
-    rawValue: String,
-    suspicious: Boolean
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        KeyValueRow(label = label, value = formattedValue)
-        if (suspicious) {
-            Text(
-                text = "原始值：$rawValue，设备上报值可能异常",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth()
-            )
+            InfoRow(label = "流量活动", value = device.trafficActivityText())
         }
     }
 }

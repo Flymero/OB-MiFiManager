@@ -280,6 +280,12 @@ fun StatusCard(
     )
 }
 
+data class DeviceMenuItem(
+    val label: String,
+    val onClick: () -> Unit,
+    val enabled: Boolean = true
+)
+
 @Composable
 fun DeviceListItem(
     name: String,
@@ -288,7 +294,7 @@ fun DeviceListItem(
     statusText: String,
     statusColor: Color,
     isBlocked: Boolean,
-    menuItems: List<Pair<String, () -> Unit>>,
+    menuItems: List<DeviceMenuItem>,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
@@ -366,12 +372,13 @@ fun DeviceListItem(
                         Icon(Icons.Default.MoreVert, contentDescription = "更多")
                     }
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        menuItems.forEach { (label, action) ->
+                        menuItems.forEach { item ->
                             DropdownMenuItem(
-                                text = { Text(label) },
+                                text = { Text(item.label) },
+                                enabled = item.enabled,
                                 onClick = {
                                     expanded = false
-                                    action()
+                                    item.onClick()
                                 }
                             )
                         }

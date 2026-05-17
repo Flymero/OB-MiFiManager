@@ -6,6 +6,8 @@ import com.flymero.mifimanager.data.local.DataStoreHelper
 import com.flymero.mifimanager.data.model.*
 import com.flymero.mifimanager.data.repository.MiFiRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -27,7 +29,8 @@ data class DeviceState(
     val isLoading: Boolean = true,
     val isPlanLoading: Boolean = false,
     val actionResult: String? = null,
-    val isLoggedOut: Boolean = false
+    val isLoggedOut: Boolean = false,
+    val isMacFilterSyncing: Boolean = false
 )
 
 @HiltViewModel
@@ -38,6 +41,8 @@ class DeviceViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(DeviceState())
     val state: StateFlow<DeviceState> = _state
+
+    private var macFilterReconnectRefreshJob: Job? = null
 
     init { refresh() }
 
@@ -137,7 +142,10 @@ class DeviceViewModel @Inject constructor(
             val exception = result.exceptionOrNull()
             val actionResult = when {
                 result.getOrNull()?.isSuccess == true -> if (enabled) "MAC 黑名单已开启" else "MAC 黑名单已关闭"
-                exception.isDisconnectDuringApply() -> if (enabled) "MAC 黑名单已开启，请重新连接 Wi‑Fi 后确认" else "MAC 黑名单已关闭，请重新连接 Wi‑Fi 后确认"
+                exception.isDisconnectDuringApply() -> {
+                    scheduleMacFilterReconnectRefresh()
+                    if (enabled) "MAC 黑名单已开启，请重新连接 Wi‑Fi 后确认" else "MAC 黑名单已关闭，请重新连接 Wi‑Fi 后确认"
+                }
                 else -> {
                     _state.value = _state.value.copy(macFiltersInfo = previous)
                     "MAC 黑名单设置失败"
@@ -165,10 +173,26 @@ class DeviceViewModel @Inject constructor(
 
     fun removeMacFromBlacklist(index: Int) {
         viewModelScope.launch {
-            val result = repository.removeMacFromBlacklist(_state.value.macFiltersInfo, index)
+            val previous = _state.value.macFiltersInfo
+            val updatedEntries = previous.blacklistEntries().filterIndexed { entryIndex, _ -> entryIndex != index }
             _state.value = _state.value.copy(
-                actionResult = if (result.getOrNull()?.isSuccess == true) "MAC 已移除" else "删除失败"
+                macFiltersInfo = previous.copy(denyList = updatedEntries)
             )
+
+            val result = repository.removeMacFromBlacklist(previous, index)
+            val exception = result.exceptionOrNull()
+            val actionResult = when {
+                result.getOrNull()?.isSuccess == true -> "MAC 已移除"
+                exception.isDisconnectDuringApply() -> {
+                    scheduleMacFilterReconnectRefresh()
+                    "MAC 已移除，请重新连接 Wi‑Fi 后确认"
+                }
+                else -> {
+                    _state.value = _state.value.copy(macFiltersInfo = previous)
+                    "删除失败"
+                }
+            }
+            _state.value = _state.value.copy(actionResult = actionResult)
             refresh()
         }
     }
@@ -185,6 +209,25 @@ class DeviceViewModel @Inject constructor(
 
     fun clearResult() {
         _state.value = _state.value.copy(actionResult = null)
+    }
+
+    private fun scheduleMacFilterReconnectRefresh() {
+        macFilterReconnectRefreshJob?.cancel()
+        macFilterReconnectRefreshJob = viewModelScope.launch {
+            _state.value = _state.value.copy(isMacFilterSyncing = true)
+            repeat(12) {
+                delay(3000)
+                val macFilters = repository.getWlanMacFiltersInfo()
+                if (macFilters.isSuccess) {
+                    _state.value = _state.value.copy(
+                        macFiltersInfo = macFilters.getOrDefault(_state.value.macFiltersInfo),
+                        isMacFilterSyncing = false
+                    )
+                    return@launch
+                }
+            }
+            _state.value = _state.value.copy(isMacFilterSyncing = false)
+        }
     }
 
     private fun Throwable?.isDisconnectDuringApply(): Boolean = when (this) {

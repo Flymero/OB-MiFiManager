@@ -164,6 +164,7 @@ fun DeviceScreen(
 
             MacBlacklistCard(
                 macFilters = state.macFiltersInfo,
+                isSyncing = state.isMacFilterSyncing,
                 onToggleEnabled = viewModel::setMacBlacklistEnabled,
                 onAddMac = { showAddMacDialog = true },
                 onRemoveMac = viewModel::removeMacFromBlacklist
@@ -513,6 +514,7 @@ private fun DhcpCard(dhcp: DhcpInfo) {
 @Composable
 private fun MacBlacklistCard(
     macFilters: WlanMacFiltersInfo,
+    isSyncing: Boolean,
     onToggleEnabled: (Boolean) -> Unit,
     onAddMac: () -> Unit,
     onRemoveMac: (Int) -> Unit
@@ -530,21 +532,33 @@ private fun MacBlacklistCard(
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = if (macFilters.isEnabled()) "已启用" else "未启用",
+                    text = when {
+                        isSyncing -> "重连后正在同步…"
+                        macFilters.isEnabled() -> "已启用"
+                        else -> "未启用"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Switch(
                 checked = macFilters.isEnabled(),
-                onCheckedChange = onToggleEnabled
+                onCheckedChange = onToggleEnabled,
+                enabled = !isSyncing
             )
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         InfoRow("过滤模式", "黑名单模式")
 
-        if (!macFilters.isEnabled()) {
+        if (isSyncing) {
+            Text(
+                text = "已提交到路由器，重连后会自动刷新这里的状态。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        } else if (!macFilters.isEnabled()) {
             Text(
                 text = "当前未生效，开启后才会按黑名单拦截。",
                 style = MaterialTheme.typography.bodySmall,
@@ -562,7 +576,7 @@ private fun MacBlacklistCard(
 
         if (macFilters.blacklistEntries().isEmpty()) {
             Text(
-                text = "暂无黑名单 MAC",
+                text = if (isSyncing) "列表同步中…" else "暂无黑名单 MAC",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp)
@@ -581,7 +595,10 @@ private fun MacBlacklistCard(
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.weight(1f)
                     )
-                    TextButton(onClick = { onRemoveMac(index) }) {
+                    TextButton(
+                        onClick = { onRemoveMac(index) },
+                        enabled = !isSyncing
+                    ) {
                         Icon(Icons.Default.DeleteOutline, contentDescription = null)
                         Text(" 删除")
                     }
@@ -590,7 +607,11 @@ private fun MacBlacklistCard(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(onClick = onAddMac, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = onAddMac,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isSyncing
+        ) {
             Icon(Icons.Default.Add, contentDescription = null)
             Text("  手动添加")
         }

@@ -31,6 +31,7 @@ data class WlanMacFiltersInfo(
 }
 
 data class MacFilterEntry(
+    @SerializedName("index") val index: String = "",
     @SerializedName("mac") val mac: String = ""
 )
 

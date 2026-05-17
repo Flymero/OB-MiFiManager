@@ -229,15 +229,18 @@ class MiFiRepository @Inject constructor(
         )
     }
 
-    suspend fun removeMacFromBlacklist(currentInfo: WlanMacFiltersInfo, index: Int): Result<ApiResult> =
-        setWlanMacFilters(
+    suspend fun removeMacFromBlacklist(currentInfo: WlanMacFiltersInfo, index: Int): Result<ApiResult> {
+        val entry = currentInfo.blacklistEntries().getOrNull(index)
+            ?: return Result.failure(IllegalArgumentException("Invalid blacklist index"))
+        val deleteIndex = entry.index.ifBlank { index.toString() }
+        return setWlanMacFilters(
             linkedMapOf(
                 "enable" to if (currentInfo.isEnabled()) "1" else "0",
                 "mode" to "2",
-                "deny_delete_index" to index.toString(),
-                "deny_list" to currentInfo.blacklistEntries().map { mapOf("mac" to it.mac) }
+                "deny_delete_index" to "$deleteIndex,"
             )
         )
+    }
 
     suspend fun changePassword(username: String, newPassword: String): Result<ApiResult> =
         runCatching {

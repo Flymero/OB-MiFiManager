@@ -385,43 +385,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                 SectionDivider()
                 KeyValueRow(label = "频段", value = state.bandSummary)
                 SectionDivider()
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "WAN IP",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = homepage.wanIp.ifEmpty { "--" },
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        if (homepage.wanIp.isNotBlank()) {
-                            IconButton(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("wan_ip", homepage.wanIp))
-                                },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "复制", modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                }
-                state.ipLocation?.let { location ->
-                    Text(
-                        text = location,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
-                    )
-                }
+                KeyValueRow(label = "WAN IP", value = homepage.wanIp.ifEmpty { "--" })
                 SectionDivider()
                 KeyValueRow(label = "LAN IP", value = homepage.lanIp.ifEmpty { "--" })
                 SectionDivider()

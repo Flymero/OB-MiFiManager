@@ -17,7 +17,6 @@ An Android management app for LTE portable WiFi hotspots, replacing the default 
 - Cellular network toggle
 - Session / total traffic statistics
 - Live uptime counter
-- WAN IP geolocation display (3 fallback APIs)
 - Router unreachable state detection and display
 - Animated battery, signal, and connection state transitions
 
@@ -100,7 +99,7 @@ Go to the [Releases](https://github.com/Flymero/OB-MiFiManager/releases) page to
 
 | Permission | Purpose |
 |------------|---------|
-| `INTERNET` | Access router API, plan query, and IP geolocation |
+| `INTERNET` | Access router API and plan query service |
 | `ACCESS_NETWORK_STATE` | Check network connectivity |
 | `ACCESS_WIFI_STATE` | Check WiFi connection status |
 

@@ -9,15 +9,11 @@ import com.flymero.mifimanager.data.model.StatisticsInfo
 import com.flymero.mifimanager.data.model.StatusInfo
 import com.flymero.mifimanager.data.repository.MiFiRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import org.json.JSONObject
+import javax.inject.Inject
 import javax.inject.Inject
 
 data class DashboardState(
@@ -34,21 +30,18 @@ data class DashboardState(
     val refreshMessage: String? = null,
     val bandSummary: String = "--",
     val routerReachable: Boolean = true,
-    val lastReachableAtLeastOnce: Boolean = false,
-    val ipLocation: String? = null
+    val lastReachableAtLeastOnce: Boolean = false
 )
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val repository: MiFiRepository,
-    private val okHttpClient: OkHttpClient
+    private val repository: MiFiRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DashboardState())
     val state: StateFlow<DashboardState> = _state
 
     private var lastApiUptime: Long = 0
-    private var lastGeoIp: String = ""
 
     init {
         startStatusPolling()
@@ -110,76 +103,8 @@ class DashboardViewModel @Inject constructor(
 
     private suspend fun refreshHomepage() {
         val result = repository.getHomepageInfo()
-        val homepage = result.getOrDefault(_state.value.homepageInfo)
-        _state.value = _state.value.copy(homepageInfo = homepage)
-        val wanIp = homepage.wanIp
-        if (wanIp.isNotBlank() && wanIp != lastGeoIp) {
-            lastGeoIp = wanIp
-            fetchIpLocation(wanIp)
-        }
+        _state.value = _state.value.copy(homepageInfo = result.getOrDefault(_state.value.homepageInfo))
     }
-
-    private fun fetchIpLocation(ip: String) {
-        viewModelScope.launch {
-            val location = withContext(Dispatchers.IO) {
-                tryIpWhois(ip) ?: tryIpApi(ip) ?: tryIpApiCo(ip)
-            }
-            if (location != null) {
-                _state.value = _state.value.copy(ipLocation = location)
-            }
-        }
-    }
-
-    private fun tryIpWhois(ip: String): String? = runCatching {
-        val request = Request.Builder()
-            .url("https://ipwhois.app/json/$ip?lang=zh")
-            .build()
-        val response = okHttpClient.newCall(request).execute()
-        val body = response.body?.string() ?: return@runCatching null
-        val json = JSONObject(body)
-        if (!json.optBoolean("success", false)) return@runCatching null
-        val parts = listOfNotNull(
-            json.optString("country").takeIf { it.isNotBlank() },
-            json.optString("region").takeIf { it.isNotBlank() },
-            json.optString("city").takeIf { it.isNotBlank() },
-            json.optString("isp").takeIf { it.isNotBlank() }
-        )
-        parts.joinToString(" · ").takeIf { it.isNotBlank() }
-    }.getOrNull()
-
-    private fun tryIpApi(ip: String): String? = runCatching {
-        val request = Request.Builder()
-            .url("http://ip-api.com/json/$ip?lang=zh-CN&fields=status,country,regionName,city,isp")
-            .build()
-        val response = okHttpClient.newCall(request).execute()
-        val body = response.body?.string() ?: return@runCatching null
-        val json = JSONObject(body)
-        if (json.optString("status") != "success") return@runCatching null
-        val parts = listOfNotNull(
-            json.optString("country").takeIf { it.isNotBlank() },
-            json.optString("regionName").takeIf { it.isNotBlank() },
-            json.optString("city").takeIf { it.isNotBlank() },
-            json.optString("isp").takeIf { it.isNotBlank() }
-        )
-        parts.joinToString(" · ").takeIf { it.isNotBlank() }
-    }.getOrNull()
-
-    private fun tryIpApiCo(ip: String): String? = runCatching {
-        val request = Request.Builder()
-            .url("https://ipapi.co/$ip/json/")
-            .build()
-        val response = okHttpClient.newCall(request).execute()
-        val body = response.body?.string() ?: return@runCatching null
-        val json = JSONObject(body)
-        if (json.optBoolean("error", false)) return@runCatching null
-        val parts = listOfNotNull(
-            json.optString("country_name").takeIf { it.isNotBlank() },
-            json.optString("region").takeIf { it.isNotBlank() },
-            json.optString("city").takeIf { it.isNotBlank() },
-            json.optString("org").takeIf { it.isNotBlank() }
-        )
-        parts.joinToString(" · ").takeIf { it.isNotBlank() }
-    }.getOrNull()
 
     private suspend fun refreshStatistics() {
         val result = repository.getStatisticsInfo()

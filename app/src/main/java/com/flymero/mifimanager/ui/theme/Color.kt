@@ -34,10 +34,13 @@ val TextTertiaryDark = Color(0xFF8A94A6)
 
 val Success = Color(0xFF1E8E3E)
 val SuccessContainer = Color(0xFFE6F4EA)
+val SuccessContainerDark = Color(0xFF0F2E1A)
 val Warning = Color(0xFFF29900)
 val WarningContainer = Color(0xFFFFF4E1)
+val WarningContainerDark = Color(0xFF2E2008)
 val ErrorLight = Color(0xFFD93025)
 val ErrorContainerLight = Color(0xFFFDECEA)
+val ErrorContainerDark = Color(0xFF3D1410)
 
 val SignalExcellent = Success
 val SignalGood = Color(0xFF49A35F)

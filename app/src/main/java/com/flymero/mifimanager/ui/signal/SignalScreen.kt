@@ -29,9 +29,8 @@ import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.components.SectionCard
 import com.flymero.mifimanager.ui.components.SectionDivider
 import com.flymero.mifimanager.ui.theme.SignalExcellent
-import com.flymero.mifimanager.ui.theme.SuccessContainer
+import com.flymero.mifimanager.ui.theme.AppColors
 import com.flymero.mifimanager.ui.theme.Warning
-import com.flymero.mifimanager.ui.theme.WarningContainer
 
 @Composable
 fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
@@ -50,7 +49,7 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
     val score = lte.signalScore()
     val qualityText = lte.qualityText(score)
     val qualityColor = if (score >= 75) SignalExcellent else Warning
-    val qualityContainer = if (score >= 75) SuccessContainer else WarningContainer
+    val qualityContainer = if (score >= 75) AppColors.successContainer() else AppColors.warningContainer()
 
     Column(
         modifier = Modifier

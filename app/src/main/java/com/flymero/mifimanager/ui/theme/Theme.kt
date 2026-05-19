@@ -6,6 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.graphics.Color
 
 data class ThemeControl(
     val isDark: Boolean = false,
@@ -13,6 +14,16 @@ data class ThemeControl(
 )
 
 val LocalThemeControl = compositionLocalOf { ThemeControl() }
+
+object AppColors {
+    @Composable
+    fun successContainer(): Color =
+        if (MaterialTheme.colorScheme.surface == SurfaceDark) SuccessContainerDark else SuccessContainer
+
+    @Composable
+    fun warningContainer(): Color =
+        if (MaterialTheme.colorScheme.surface == SurfaceDark) WarningContainerDark else WarningContainer
+}
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryDark,
@@ -27,6 +38,7 @@ private val DarkColorScheme = darkColorScheme(
     surfaceContainerLow = SurfaceContainerLowDark,
     outlineVariant = OutlineVariantDark,
     error = ErrorLight,
+    errorContainer = ErrorContainerDark,
     onSurface = TextPrimaryDark,
     onSurfaceVariant = TextSecondaryDark
 )
@@ -44,6 +56,7 @@ private val LightColorScheme = lightColorScheme(
     surfaceContainerLow = SurfaceContainerLowLight,
     outlineVariant = OutlineVariantLight,
     error = ErrorLight,
+    errorContainer = ErrorContainerLight,
     onSurface = TextPrimaryLight,
     onSurfaceVariant = TextSecondaryLight
 )

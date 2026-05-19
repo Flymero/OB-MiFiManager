@@ -70,9 +70,7 @@ import com.flymero.mifimanager.data.model.WanInfo
 import com.flymero.mifimanager.data.model.WlanMacFiltersInfo
 import com.flymero.mifimanager.ui.components.InfoRow
 import com.flymero.mifimanager.ui.components.KeyValueRow
-import com.flymero.mifimanager.ui.theme.ErrorContainerLight
 import com.flymero.mifimanager.ui.theme.LocalThemeControl
-import com.flymero.mifimanager.ui.theme.SurfaceContainerLowLight
 
 private data class NetworkModeOption(val value: String, val label: String)
 
@@ -663,7 +661,7 @@ private fun DangerZoneCard(onRestoreFactory: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = ErrorContainerLight.copy(alpha = 0.92f),
+        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.92f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.24f))
     ) {
         Column(
@@ -705,7 +703,7 @@ private fun ManagementCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = SurfaceContainerLowLight
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         shape = MaterialTheme.shapes.large
     ) {

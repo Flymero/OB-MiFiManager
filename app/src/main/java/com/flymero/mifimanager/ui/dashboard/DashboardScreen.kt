@@ -77,9 +77,8 @@ import com.flymero.mifimanager.ui.theme.SignalPoor
 import com.flymero.mifimanager.ui.theme.SpeedDownload
 import com.flymero.mifimanager.ui.theme.SpeedUpload
 import com.flymero.mifimanager.ui.theme.Success
-import com.flymero.mifimanager.ui.theme.SuccessContainer
+import com.flymero.mifimanager.ui.theme.AppColors
 import com.flymero.mifimanager.ui.theme.Warning
-import com.flymero.mifimanager.ui.theme.WarningContainer
 import kotlin.math.ceil
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,9 +140,9 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
         else -> Warning
     }
     val connectionChipContainer = when {
-        !state.routerReachable && state.lastReachableAtLeastOnce -> WarningContainer
-        homepage.connectDisconnect == "cellular" -> SuccessContainer
-        else -> WarningContainer
+        !state.routerReachable && state.lastReachableAtLeastOnce -> AppColors.warningContainer()
+        homepage.connectDisconnect == "cellular" -> AppColors.successContainer()
+        else -> AppColors.warningContainer()
     }
 
     Column(modifier = Modifier.fillMaxSize()) {

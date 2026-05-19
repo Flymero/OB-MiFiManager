@@ -42,8 +42,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.flymero.mifimanager.ui.theme.ErrorContainerLight
-import com.flymero.mifimanager.ui.theme.SuccessContainer
+import com.flymero.mifimanager.ui.theme.AppColors
 
 @Composable
 fun SectionCard(
@@ -304,7 +303,7 @@ fun DeviceListItem(
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = MaterialTheme.shapes.large,
-        color = if (isBlocked) ErrorContainerLight else MaterialTheme.colorScheme.surface,
+        color = if (isBlocked) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
         border = BorderStroke(
             1.dp,
             if (isBlocked) MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
@@ -322,7 +321,7 @@ fun DeviceListItem(
                 modifier = Modifier
                     .size(44.dp)
                     .background(
-                        if (isBlocked) ErrorContainerLight.copy(alpha = 0.85f) else SuccessContainer.copy(alpha = 0.7f),
+                        if (isBlocked) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f) else AppColors.successContainer().copy(alpha = 0.7f),
                         CircleShape
                     ),
                 contentAlignment = Alignment.Center

@@ -122,28 +122,64 @@ class DashboardViewModel @Inject constructor(
     private fun fetchIpLocation(ip: String) {
         viewModelScope.launch {
             val location = withContext(Dispatchers.IO) {
-                runCatching {
-                    val request = Request.Builder()
-                        .url("http://ip-api.com/json/$ip?lang=zh-CN&fields=status,country,regionName,city,isp")
-                        .build()
-                    val response = okHttpClient.newCall(request).execute()
-                    val body = response.body?.string() ?: return@runCatching null
-                    val json = JSONObject(body)
-                    if (json.optString("status") != "success") return@runCatching null
-                    val parts = listOfNotNull(
-                        json.optString("country").takeIf { it.isNotBlank() },
-                        json.optString("regionName").takeIf { it.isNotBlank() },
-                        json.optString("city").takeIf { it.isNotBlank() },
-                        json.optString("isp").takeIf { it.isNotBlank() }
-                    )
-                    parts.joinToString(" · ").takeIf { it.isNotBlank() }
-                }.getOrNull()
+                tryIpWhois(ip) ?: tryIpApi(ip) ?: tryIpApiCo(ip)
             }
             if (location != null) {
                 _state.value = _state.value.copy(ipLocation = location)
             }
         }
     }
+
+    private fun tryIpWhois(ip: String): String? = runCatching {
+        val request = Request.Builder()
+            .url("https://ipwhois.app/json/$ip?lang=zh")
+            .build()
+        val response = okHttpClient.newCall(request).execute()
+        val body = response.body?.string() ?: return@runCatching null
+        val json = JSONObject(body)
+        if (!json.optBoolean("success", false)) return@runCatching null
+        val parts = listOfNotNull(
+            json.optString("country").takeIf { it.isNotBlank() },
+            json.optString("region").takeIf { it.isNotBlank() },
+            json.optString("city").takeIf { it.isNotBlank() },
+            json.optString("isp").takeIf { it.isNotBlank() }
+        )
+        parts.joinToString(" · ").takeIf { it.isNotBlank() }
+    }.getOrNull()
+
+    private fun tryIpApi(ip: String): String? = runCatching {
+        val request = Request.Builder()
+            .url("http://ip-api.com/json/$ip?lang=zh-CN&fields=status,country,regionName,city,isp")
+            .build()
+        val response = okHttpClient.newCall(request).execute()
+        val body = response.body?.string() ?: return@runCatching null
+        val json = JSONObject(body)
+        if (json.optString("status") != "success") return@runCatching null
+        val parts = listOfNotNull(
+            json.optString("country").takeIf { it.isNotBlank() },
+            json.optString("regionName").takeIf { it.isNotBlank() },
+            json.optString("city").takeIf { it.isNotBlank() },
+            json.optString("isp").takeIf { it.isNotBlank() }
+        )
+        parts.joinToString(" · ").takeIf { it.isNotBlank() }
+    }.getOrNull()
+
+    private fun tryIpApiCo(ip: String): String? = runCatching {
+        val request = Request.Builder()
+            .url("https://ipapi.co/$ip/json/")
+            .build()
+        val response = okHttpClient.newCall(request).execute()
+        val body = response.body?.string() ?: return@runCatching null
+        val json = JSONObject(body)
+        if (json.optBoolean("error", false)) return@runCatching null
+        val parts = listOfNotNull(
+            json.optString("country_name").takeIf { it.isNotBlank() },
+            json.optString("region").takeIf { it.isNotBlank() },
+            json.optString("city").takeIf { it.isNotBlank() },
+            json.optString("org").takeIf { it.isNotBlank() }
+        )
+        parts.joinToString(" · ").takeIf { it.isNotBlank() }
+    }.getOrNull()
 
     private suspend fun refreshStatistics() {
         val result = repository.getStatisticsInfo()

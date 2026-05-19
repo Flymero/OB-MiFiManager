@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -96,7 +95,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val plan = state.planInfo
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState()
 
     var showPlanDetail by rememberSaveable { mutableStateOf(false) }
     var showPlanHint by rememberSaveable { mutableStateOf(plan != null) }
@@ -153,8 +152,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val animatedChipContainer by animateColorAsState(connectionChipContainer, tween(300), label = "chipContainer")
     val animatedBattery by animateIntAsState(batteryPercent, tween(500), label = "battery")
     val animatedSignal by animateIntAsState(signalQuality, tween(400), label = "signal")
-    val animatedRxSpeed by animateFloatAsState(status.rxSpeed.toFloatOrNull() ?: 0f, tween(600), label = "rxSpeed")
-    val animatedTxSpeed by animateFloatAsState(status.txSpeed.toFloatOrNull() ?: 0f, tween(600), label = "txSpeed")
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -237,14 +234,14 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         DashboardMetricCard(
                             title = "下载速率",
-                            primary = status.formattedSpeed(animatedRxSpeed.toLong().toString()),
+                            primary = status.formattedSpeed(status.rxSpeed),
                             icon = Icons.Default.ArrowDownward,
                             accentColor = SpeedDownload,
                             modifier = Modifier.weight(1f)
                         )
                         DashboardMetricCard(
                             title = "上传速率",
-                            primary = status.formattedSpeed(animatedTxSpeed.toLong().toString()),
+                            primary = status.formattedSpeed(status.txSpeed),
                             icon = Icons.Default.ArrowUpward,
                             accentColor = SpeedUpload,
                             modifier = Modifier.weight(1f)
@@ -388,22 +385,41 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                 SectionDivider()
                 KeyValueRow(label = "频段", value = state.bandSummary)
                 SectionDivider()
-                KeyValueRow(
-                    label = "WAN IP",
-                    value = homepage.wanIp.ifEmpty { "--" },
-                    onCopy = if (homepage.wanIp.isNotBlank()) {
-                        {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("wan_ip", homepage.wanIp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "WAN IP",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = homepage.wanIp.ifEmpty { "--" },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        if (homepage.wanIp.isNotBlank()) {
+                            IconButton(
+                                onClick = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("wan_ip", homepage.wanIp))
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "复制", modifier = Modifier.size(16.dp))
+                            }
                         }
-                    } else null
-                )
+                    }
+                }
                 state.ipLocation?.let { location ->
                     Text(
                         text = location,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 4.dp)
+                        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
                     )
                 }
                 SectionDivider()

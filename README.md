@@ -17,6 +17,9 @@ An Android management app for LTE portable WiFi hotspots, replacing the default 
 - Cellular network toggle
 - Session / total traffic statistics
 - Live uptime counter
+- WAN IP geolocation display (3 fallback APIs)
+- Router unreachable state detection and display
+- Animated battery, signal, and connection state transitions
 
 ### Signal Monitor
 - RSRP / SINR / RSRQ gauge charts
@@ -25,17 +28,27 @@ An Android management app for LTE portable WiFi hotspots, replacing the default 
 
 ### WiFi Settings
 - View / change WiFi name and password
-- Security mode switching (WPA2, WPA3, Mixed)
-- Advanced: channel, bandwidth, max clients, AP isolation
+- Security mode selection via bottom sheet (WPA-PSK, WPA2-PSK, WPA3-SAE, Mixed, WPA2/WPA3)
+- Recommended / insecure labels on encryption options
+- Advanced: channel, bandwidth, max clients, AP isolation, SSID broadcast
+- WiFi auto-off timer (10-60 minutes)
+- WPS push-button and PIN pairing
+
+### Device List
+- Online / offline / blocked device tabs with swipe pager
+- Device detail bottom sheet (connection duration, traffic activity, MAC, IP)
+- Block / unblock devices (current device protected from self-blocking)
+- Copy MAC address
 
 ### Device Management
-- Online device list with real-time refresh
-- Block / unblock devices
-- Device info: model, firmware, IMEI, ICCID
+- Device info: model, firmware, IMEI, ICCID, serial number
 - SIM card management and switching (eSIM1 / eSIM2 / auto-select)
-- Network mode switching (2G / 3G / 4G / Auto)
+- Network mode switching via bottom sheet (based on device capability)
 - DHCP settings viewer
+- MAC blacklist management (add / remove / enable / disable)
+- Disconnect-aware blacklist operations with auto-refresh after reconnect
 - Change admin password / restart device / factory reset
+- Dark mode toggle
 
 ### Data Plan Query
 - Query remaining data, expiry date, and balance
@@ -43,6 +56,10 @@ An Android management app for LTE portable WiFi hotspots, replacing the default 
 
 ### Internet Authentication
 - SMS verification for device internet access
+
+## Dark Mode
+
+Toggle dark mode from the device management page (top-right icon). The preference persists across app restarts.
 
 ## Login
 
@@ -64,8 +81,8 @@ The project uses GitHub Actions for CI/CD. Push code or create a tag to trigger 
 
 ```bash
 # Create a release
-git tag v1.0.0
-git push origin v1.0.0
+git tag v2.0.0
+git push origin v2.0.0
 ```
 
 Local build:
@@ -83,7 +100,7 @@ Go to the [Releases](https://github.com/Flymero/OB-MiFiManager/releases) page to
 
 | Permission | Purpose |
 |------------|---------|
-| `INTERNET` | Access router API and plan query service |
+| `INTERNET` | Access router API, plan query, and IP geolocation |
 | `ACCESS_NETWORK_STATE` | Check network connectivity |
 | `ACCESS_WIFI_STATE` | Check WiFi connection status |
 

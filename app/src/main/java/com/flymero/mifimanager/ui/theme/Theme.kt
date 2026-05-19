@@ -5,6 +5,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
+
+data class ThemeControl(
+    val isDark: Boolean = false,
+    val toggle: () -> Unit = {}
+)
+
+val LocalThemeControl = compositionLocalOf { ThemeControl() }
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryDark,

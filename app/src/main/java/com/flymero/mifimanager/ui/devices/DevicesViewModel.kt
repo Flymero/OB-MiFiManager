@@ -6,6 +6,7 @@ import com.flymero.mifimanager.data.model.DeviceManagementInfo
 import com.flymero.mifimanager.data.model.WlanMacFiltersInfo
 import com.flymero.mifimanager.data.repository.MiFiRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -30,11 +31,11 @@ class DevicesViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
-            val deviceResult = repository.getDeviceManagementInfo()
-            val macFiltersResult = repository.getWlanMacFiltersInfo()
+            val deviceResult = async { repository.getDeviceManagementInfo() }
+            val macFiltersResult = async { repository.getWlanMacFiltersInfo() }
             _state.value = _state.value.copy(
-                deviceInfo = deviceResult.getOrDefault(DeviceManagementInfo()),
-                macFiltersInfo = macFiltersResult.getOrDefault(WlanMacFiltersInfo()),
+                deviceInfo = deviceResult.await().getOrDefault(DeviceManagementInfo()),
+                macFiltersInfo = macFiltersResult.await().getOrDefault(WlanMacFiltersInfo()),
                 isLoading = false
             )
         }

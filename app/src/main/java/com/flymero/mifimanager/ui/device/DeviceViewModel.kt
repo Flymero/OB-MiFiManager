@@ -7,6 +7,7 @@ import com.flymero.mifimanager.data.model.*
 import com.flymero.mifimanager.data.repository.MiFiRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,22 +49,22 @@ class DeviceViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
-            val homepage = repository.getHomepageInfo()
-            val wan = repository.getWanInfo()
-            val dhcp = repository.getDhcpInfo()
-            val apn = repository.getApnProfileInfo()
-            val sim = repository.getSimInfo()
-            val firmware = repository.getFirmwareInfo()
-            val macFilters = repository.getWlanMacFiltersInfo()
+            val homepage = async { repository.getHomepageInfo() }
+            val wan = async { repository.getWanInfo() }
+            val dhcp = async { repository.getDhcpInfo() }
+            val apn = async { repository.getApnProfileInfo() }
+            val sim = async { repository.getSimInfo() }
+            val firmware = async { repository.getFirmwareInfo() }
+            val macFilters = async { repository.getWlanMacFiltersInfo() }
 
             _state.value = _state.value.copy(
-                homepageInfo = homepage.getOrDefault(HomepageInfo()),
-                wanInfo = wan.getOrDefault(WanInfo()),
-                dhcpInfo = dhcp.getOrDefault(DhcpInfo()),
-                apnInfo = apn.getOrDefault(ApnProfileInfo()),
-                simInfo = sim.getOrDefault(SimInfo()),
-                firmwareInfo = firmware.getOrDefault(FirmwareInfo()),
-                macFiltersInfo = macFilters.getOrDefault(_state.value.macFiltersInfo),
+                homepageInfo = homepage.await().getOrDefault(HomepageInfo()),
+                wanInfo = wan.await().getOrDefault(WanInfo()),
+                dhcpInfo = dhcp.await().getOrDefault(DhcpInfo()),
+                apnInfo = apn.await().getOrDefault(ApnProfileInfo()),
+                simInfo = sim.await().getOrDefault(SimInfo()),
+                firmwareInfo = firmware.await().getOrDefault(FirmwareInfo()),
+                macFiltersInfo = macFilters.await().getOrDefault(_state.value.macFiltersInfo),
                 isLoading = false,
                 isPlanLoading = true
             )
@@ -163,10 +164,29 @@ class DeviceViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            val result = repository.addMacToBlacklist(_state.value.macFiltersInfo, mac)
-            _state.value = _state.value.copy(
-                actionResult = if (result.getOrNull()?.isSuccess == true) "MAC 已加入黑名单" else "添加失败"
-            )
+            val previous = _state.value.macFiltersInfo
+            if (previous.blacklistEntries().none { it.mac.equals(normalizedMac, ignoreCase = true) }) {
+                _state.value = _state.value.copy(
+                    macFiltersInfo = previous.copy(
+                        denyList = previous.blacklistEntries() + MacFilterEntry(mac = normalizedMac)
+                    )
+                )
+            }
+
+            val result = repository.addMacToBlacklist(previous, mac)
+            val exception = result.exceptionOrNull()
+            val actionResult = when {
+                result.getOrNull()?.isSuccess == true -> "MAC 已加入黑名单"
+                exception.isDisconnectDuringApply() -> {
+                    scheduleMacFilterReconnectRefresh()
+                    "MAC 已加入黑名单，请重新连接 Wi‑Fi 后确认"
+                }
+                else -> {
+                    _state.value = _state.value.copy(macFiltersInfo = previous)
+                    "添加失败"
+                }
+            }
+            _state.value = _state.value.copy(actionResult = actionResult)
             refresh()
         }
     }

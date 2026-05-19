@@ -40,4 +40,10 @@ class DataStoreHelper @Inject constructor(
         shouldRemember() && getSavedUsername().isNotEmpty() && getSavedPassword().isNotEmpty()
 
     fun getRechargeNo(): String = prefs.getString("recharge_no", "") ?: ""
+
+    fun isDarkMode(): Boolean = prefs.getBoolean("dark_mode", false)
+
+    fun setDarkMode(enabled: Boolean) {
+        prefs.edit().putBoolean("dark_mode", enabled).apply()
+    }
 }

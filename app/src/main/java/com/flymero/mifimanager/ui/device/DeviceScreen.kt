@@ -19,7 +19,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.RestartAlt
@@ -33,6 +35,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -68,6 +71,7 @@ import com.flymero.mifimanager.data.model.WlanMacFiltersInfo
 import com.flymero.mifimanager.ui.components.InfoRow
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.theme.ErrorContainerLight
+import com.flymero.mifimanager.ui.theme.LocalThemeControl
 import com.flymero.mifimanager.ui.theme.SurfaceContainerLowLight
 
 private data class NetworkModeOption(val value: String, val label: String)
@@ -131,11 +135,24 @@ fun DeviceScreen(
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "设备管理",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
+            val themeControl = LocalThemeControl.current
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "设备管理",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = themeControl.toggle) {
+                    Icon(
+                        imageVector = if (themeControl.isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                        contentDescription = if (themeControl.isDark) "切换到浅色模式" else "切换到深色模式"
+                    )
+                }
+            }
 
             DeviceInfoCard(
                 homepage = homepage,
@@ -756,8 +773,10 @@ private fun networkModeOptions(defaultMode: String): List<NetworkModeOption> = w
     )
 }
 
+private val MAC_ADDRESS_REGEX = Regex("^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$")
+
 private fun isValidMacAddress(value: String): Boolean =
-    Regex("^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$").matches(value.trim())
+    MAC_ADDRESS_REGEX.matches(value.trim())
 
 private fun isCurrentSim(
     simInfo: SimInfo,

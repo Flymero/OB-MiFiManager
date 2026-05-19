@@ -3,6 +3,10 @@ package com.flymero.mifimanager.ui.dashboard
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +38,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Button
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -91,7 +96,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val plan = state.planInfo
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val sheetState = rememberModalBottomSheetState()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var showPlanDetail by rememberSaveable { mutableStateOf(false) }
     var showPlanHint by rememberSaveable { mutableStateOf(plan != null) }
@@ -144,6 +149,12 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
         homepage.connectDisconnect == "cellular" -> AppColors.successContainer()
         else -> AppColors.warningContainer()
     }
+    val animatedChipColor by animateColorAsState(connectionChipColor, tween(300), label = "chipColor")
+    val animatedChipContainer by animateColorAsState(connectionChipContainer, tween(300), label = "chipContainer")
+    val animatedBattery by animateIntAsState(batteryPercent, tween(500), label = "battery")
+    val animatedSignal by animateIntAsState(signalQuality, tween(400), label = "signal")
+    val animatedRxSpeed by animateFloatAsState(status.rxSpeed.toFloatOrNull() ?: 0f, tween(600), label = "rxSpeed")
+    val animatedTxSpeed by animateFloatAsState(status.txSpeed.toFloatOrNull() ?: 0f, tween(600), label = "txSpeed")
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -175,8 +186,8 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                         )
                         StatusChip(
                             text = connectionChipText,
-                            color = connectionChipColor,
-                            containerColor = connectionChipContainer
+                            color = animatedChipColor,
+                            containerColor = animatedChipContainer
                         )
                     }
                 }
@@ -195,14 +206,14 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                             title = "信号强度",
                             primary = signalText,
                             secondary = "${status.rssi} dBm",
-                            footnote = "${status.signalQuality} 格",
+                            footnote = "$animatedSignal 格",
                             icon = Icons.Default.SignalCellularAlt,
                             accentColor = signalColor,
                             modifier = Modifier.weight(1f)
                         )
                         DashboardMetricCard(
                             title = "电量",
-                            primary = "$batteryPercent%",
+                            primary = "$animatedBattery%",
                             secondary = if (status.batteryCharging == "1") "充电中" else if (batteryPercent <= 20) "低电量" else "状态正常",
                             icon = batteryIcon,
                             accentColor = batteryColor,
@@ -226,14 +237,14 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         DashboardMetricCard(
                             title = "下载速率",
-                            primary = status.formattedSpeed(status.rxSpeed),
+                            primary = status.formattedSpeed(animatedRxSpeed.toLong().toString()),
                             icon = Icons.Default.ArrowDownward,
                             accentColor = SpeedDownload,
                             modifier = Modifier.weight(1f)
                         )
                         DashboardMetricCard(
                             title = "上传速率",
-                            primary = status.formattedSpeed(status.txSpeed),
+                            primary = status.formattedSpeed(animatedTxSpeed.toLong().toString()),
                             icon = Icons.Default.ArrowUpward,
                             accentColor = SpeedUpload,
                             modifier = Modifier.weight(1f)
@@ -377,7 +388,24 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                 SectionDivider()
                 KeyValueRow(label = "频段", value = state.bandSummary)
                 SectionDivider()
-                KeyValueRow(label = "WAN IP", value = homepage.wanIp.ifEmpty { "--" })
+                KeyValueRow(
+                    label = "WAN IP",
+                    value = homepage.wanIp.ifEmpty { "--" },
+                    onCopy = if (homepage.wanIp.isNotBlank()) {
+                        {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("wan_ip", homepage.wanIp))
+                        }
+                    } else null
+                )
+                state.ipLocation?.let { location ->
+                    Text(
+                        text = location,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
                 SectionDivider()
                 KeyValueRow(label = "LAN IP", value = homepage.lanIp.ifEmpty { "--" })
                 SectionDivider()
@@ -751,11 +779,12 @@ private fun PackageDetailSheet(
             }
         }
 
-        TextButton(
+        Button(
             onClick = onClose,
-            modifier = Modifier.align(Alignment.End)
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large
         ) {
-            Text("知道了", color = MaterialTheme.colorScheme.primary)
+            Text("知道了")
         }
         Spacer(modifier = Modifier.height(8.dp))
     }

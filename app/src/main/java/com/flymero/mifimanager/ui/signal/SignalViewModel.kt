@@ -31,11 +31,15 @@ class SignalViewModel @Inject constructor(
             while (true) {
                 val eng = repository.getEngineeringInfo()
                 val status = repository.getStatusInfo()
-                _state.value = SignalState(
-                    engineeringInfo = eng.getOrDefault(_state.value.engineeringInfo),
-                    statusInfo = status.getOrDefault(_state.value.statusInfo),
-                    isLoading = false
-                )
+                val newEng = eng.getOrDefault(_state.value.engineeringInfo)
+                val newStatus = status.getOrDefault(_state.value.statusInfo)
+                if (newEng != _state.value.engineeringInfo || newStatus != _state.value.statusInfo || _state.value.isLoading) {
+                    _state.value = SignalState(
+                        engineeringInfo = newEng,
+                        statusInfo = newStatus,
+                        isLoading = false
+                    )
+                }
                 delay(5000)
             }
         }

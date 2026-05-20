@@ -1,6 +1,7 @@
 package com.flymero.mifimanager.di
 
 import android.content.Context
+import com.flymero.mifimanager.BuildConfig
 import com.flymero.mifimanager.data.api.DigestAuthInterceptor
 import com.flymero.mifimanager.data.api.MiFiApi
 import dagger.Module
@@ -25,7 +26,6 @@ object NetworkModule {
     @Singleton
     fun provideDigestAuthInterceptor(@ApplicationContext context: Context): DigestAuthInterceptor {
         val interceptor = DigestAuthInterceptor()
-        // Load saved credentials on startup for auto-login
         val prefs = context.getSharedPreferences("mifi_prefs", Context.MODE_PRIVATE)
         if (prefs.getBoolean("remember", false)) {
             val username = prefs.getString("username", "") ?: ""
@@ -43,7 +43,8 @@ object NetworkModule {
         return OkHttpClient.Builder()
             .addInterceptor(digestAuthInterceptor)
             .addInterceptor(HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY
+                    else HttpLoggingInterceptor.Level.NONE
             })
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)

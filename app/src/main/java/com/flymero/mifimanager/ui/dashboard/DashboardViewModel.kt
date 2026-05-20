@@ -91,23 +91,34 @@ class DashboardViewModel @Inject constructor(
             _state.value = _state.value.copy(localUptimeSeconds = apiUptime)
         }
 
-        _state.value = _state.value.copy(
-            statusInfo = status,
-            isLoading = false,
-            error = statusResult.exceptionOrNull()?.message,
-            routerReachable = statusResult.isSuccess,
-            lastReachableAtLeastOnce = _state.value.lastReachableAtLeastOnce || statusResult.isSuccess
-        )
+        val current = _state.value
+        val newReachable = statusResult.isSuccess
+        val newError = statusResult.exceptionOrNull()?.message
+        if (current.statusInfo != status || current.isLoading || current.routerReachable != newReachable || current.error != newError) {
+            _state.value = current.copy(
+                statusInfo = status,
+                isLoading = false,
+                error = newError,
+                routerReachable = newReachable,
+                lastReachableAtLeastOnce = current.lastReachableAtLeastOnce || newReachable
+            )
+        }
     }
 
     private suspend fun refreshHomepage() {
         val result = repository.getHomepageInfo()
-        _state.value = _state.value.copy(homepageInfo = result.getOrDefault(_state.value.homepageInfo))
+        val homepage = result.getOrDefault(_state.value.homepageInfo)
+        if (homepage != _state.value.homepageInfo) {
+            _state.value = _state.value.copy(homepageInfo = homepage)
+        }
     }
 
     private suspend fun refreshStatistics() {
         val result = repository.getStatisticsInfo()
-        _state.value = _state.value.copy(statisticsInfo = result.getOrDefault(_state.value.statisticsInfo))
+        val stats = result.getOrDefault(_state.value.statisticsInfo)
+        if (stats != _state.value.statisticsInfo) {
+            _state.value = _state.value.copy(statisticsInfo = stats)
+        }
     }
 
     private suspend fun refreshPlan() {
@@ -153,7 +164,9 @@ class DashboardViewModel @Inject constructor(
         } else {
             "--"
         }
-        _state.value = _state.value.copy(engineeringInfo = engineering, bandSummary = bandSummary)
+        if (engineering != _state.value.engineeringInfo || bandSummary != _state.value.bandSummary) {
+            _state.value = _state.value.copy(engineeringInfo = engineering, bandSummary = bandSummary)
+        }
     }
 
     fun toggleCellular(connect: Boolean) {

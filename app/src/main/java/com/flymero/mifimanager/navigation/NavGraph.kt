@@ -69,7 +69,6 @@ fun MiFiNavHost() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Check if should auto-login (credentials saved)
     val context = androidx.compose.ui.platform.LocalContext.current
     val shouldAutoLogin = remember {
         val prefs = context.getSharedPreferences("mifi_prefs", android.content.Context.MODE_PRIVATE)
@@ -79,7 +78,6 @@ fun MiFiNavHost() {
     }
     val startDestination = if (shouldAutoLogin) "dashboard" else "login"
 
-    // Only show bottom bar when NOT on login screen
     val isLoginRoute = currentRoute?.startsWith("login") == true
     val showBottomBar = currentRoute != null && !isLoginRoute
 

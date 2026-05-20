@@ -40,10 +40,13 @@ class TrafficViewModel @Inject constructor(
 
     private suspend fun refresh() {
         val result = repository.getStatisticsInfo()
-        _state.value = _state.value.copy(
-            stats = result.getOrDefault(_state.value.stats),
-            isLoading = false
-        )
+        val newStats = result.getOrDefault(_state.value.stats)
+        if (newStats != _state.value.stats || _state.value.isLoading) {
+            _state.value = _state.value.copy(
+                stats = newStats,
+                isLoading = false
+            )
+        }
     }
 
     fun clearStats() {

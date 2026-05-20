@@ -49,7 +49,6 @@ fun LoginScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(false) }
 
-    // Load saved credentials on first composition
     LaunchedEffect(state.savedUsername) {
         if (state.savedUsername.isNotEmpty()) {
             username = state.savedUsername
@@ -59,7 +58,6 @@ fun LoginScreen(
         }
     }
 
-    // Auto-login if saved credentials exist (skip after logout)
     LaunchedEffect(Unit) {
         if (!fromLogout) viewModel.autoLogin()
     }

@@ -90,7 +90,6 @@ fun PlanScreen(viewModel: PlanViewModel = hiltViewModel()) {
             }
         }
 
-        // Package overview card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -114,7 +113,6 @@ fun PlanScreen(viewModel: PlanViewModel = hiltViewModel()) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Progress bar
                 LinearProgressIndicator(
                     progress = { plan.usagePercent() / 100f },
                     modifier = Modifier
@@ -144,7 +142,6 @@ fun PlanScreen(viewModel: PlanViewModel = hiltViewModel()) {
             }
         }
 
-        // Details card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -175,7 +172,6 @@ fun PlanScreen(viewModel: PlanViewModel = hiltViewModel()) {
             }
         }
 
-        // Device info card
         plan.equipment?.let { equip ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -203,7 +199,6 @@ fun PlanScreen(viewModel: PlanViewModel = hiltViewModel()) {
                 }
             }
 
-            // SIM cards
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(

@@ -74,7 +74,7 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
             fontWeight = FontWeight.Bold
         )
 
-        // Current session traffic
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -132,7 +132,6 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
             }
         }
 
-        // Total traffic
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -188,7 +187,6 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
             }
         }
 
-        // Login status
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -209,7 +207,6 @@ fun TrafficScreen(viewModel: TrafficViewModel = hiltViewModel()) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Clear stats button
         Button(
             onClick = { viewModel.clearStats() },
             modifier = Modifier.fillMaxWidth(),

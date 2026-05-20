@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Visibility
@@ -30,7 +32,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -48,6 +53,8 @@ fun LoginScreen(
     var rechargeNo by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(false) }
+    val passwordFocus = remember { FocusRequester() }
+    val rechargeNoFocus = remember { FocusRequester() }
 
     LaunchedEffect(state.savedUsername) {
         if (state.savedUsername.isNotEmpty()) {
@@ -102,7 +109,9 @@ fun LoginScreen(
             onValueChange = { username = it },
             label = { Text("用户名") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() })
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -111,10 +120,12 @@ fun LoginScreen(
             value = password,
             onValueChange = { password = it },
             label = { Text("密码") },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(passwordFocus),
             singleLine = true,
             visualTransformation = if (passwordVisible) VisualTransformation.None
                 else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { rechargeNoFocus.requestFocus() }),
             trailingIcon = {
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
                     Icon(
@@ -132,13 +143,18 @@ fun LoginScreen(
             value = rechargeNo,
             onValueChange = { rechargeNo = it },
             label = { Text("充值号（用于套餐查询）") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            modifier = Modifier.fillMaxWidth().focusRequester(rechargeNoFocus),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = {
+                if (username.isNotEmpty() && password.isNotEmpty()) {
+                    viewModel.login(username, password, rechargeNo, rememberMe)
+                }
+            })
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Remember password checkbox
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -170,6 +186,7 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
+            shape = MaterialTheme.shapes.large,
             enabled = !state.isLoading && username.isNotEmpty() && password.isNotEmpty()
         ) {
             if (state.isLoading) {

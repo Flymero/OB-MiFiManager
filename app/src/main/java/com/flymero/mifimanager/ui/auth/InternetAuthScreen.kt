@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -29,6 +30,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -180,8 +182,26 @@ private fun AuthTerminalCard(
 ) {
     var phoneNum by remember { mutableStateOf("") }
     var verifyCode by remember { mutableStateOf("") }
+    var showReauthConfirm by remember { mutableStateOf(false) }
 
     val isAuth = terminal.isAuthenticated()
+
+    if (showReauthConfirm) {
+        AlertDialog(
+            onDismissRequest = { showReauthConfirm = false },
+            title = { Text("重新认证") },
+            text = { Text("该设备已通过认证，确认要重新认证吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showReauthConfirm = false
+                    onSendSms("")
+                }) { Text("确认") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReauthConfirm = false }) { Text("取消") }
+            }
+        )
+    }
 
     androidx.compose.material3.Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -308,7 +328,7 @@ private fun AuthTerminalCard(
             if (isAuth && !isVerifying) {
                 HorizontalDivider()
                 OutlinedButton(
-                    onClick = { onSendSms("") },
+                    onClick = { showReauthConfirm = true },
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large
                 ) {

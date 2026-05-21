@@ -1,5 +1,9 @@
 package com.flymero.mifimanager.ui.plan
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,10 +35,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.flymero.mifimanager.ui.components.InfoRow
+import com.flymero.mifimanager.ui.components.KeyValueRow
 
 @Composable
 fun PlanScreen(viewModel: PlanViewModel = hiltViewModel()) {
@@ -67,6 +73,7 @@ fun PlanScreen(viewModel: PlanViewModel = hiltViewModel()) {
     }
 
     val plan = state.planInfo ?: return
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -191,7 +198,15 @@ fun PlanScreen(viewModel: PlanViewModel = hiltViewModel()) {
                         Text("设备信息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    InfoRow("充值号", equip.devNo)
+                    KeyValueRow(
+                        label = "充值号",
+                        value = equip.devNo,
+                        onCopy = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("充值号", equip.devNo))
+                            Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                        }
+                    )
                     InfoRow("设备状态", if (equip.deviceStatus == 1) "在线" else "离线")
                     InfoRow("上报时间", equip.reportTime)
                     InfoRow("热点名称", equip.hotspotName)

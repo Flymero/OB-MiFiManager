@@ -308,10 +308,6 @@ private fun ClientDeviceItem(
     onOpenDetails: () -> Unit
 ) {
     val isCurrentDevice = currentDeviceMac.isNotBlank() && device.mac.trim().replace('-', ':').uppercase() == currentDeviceMac
-    val extra = buildList {
-        device.formattedTimeAdded().takeIf { it != "--" }?.let { add("首次 $it") }
-        device.shortConnectionDuration().takeIf { it != "--" }?.let { add("累计 $it") }
-    }.joinToString(" · ").ifBlank { null }
     DeviceListItem(
         name = device.decodedName(),
         mac = device.mac,
@@ -319,7 +315,6 @@ private fun ClientDeviceItem(
         statusText = statusText,
         statusColor = statusColor,
         isBlocked = isBlocked,
-        extraInfo = extra,
         onClick = onOpenDetails,
         menuItems = buildList {
             add(DeviceMenuItem("查看详情", onOpenDetails))
@@ -382,7 +377,7 @@ private fun DeviceTrafficDetailSheet(
             HorizontalDivider()
             InfoRow(label = "总连接时长", value = device.formattedConnectionDuration())
             HorizontalDivider()
-            InfoRow(label = "最近记录时间", value = device.timeAdded.ifBlank { "--" })
+            InfoRow(label = "首次连接", value = device.formattedTimeAdded())
             HorizontalDivider()
             InfoRow(label = "流量活动", value = device.trafficActivityText())
         }

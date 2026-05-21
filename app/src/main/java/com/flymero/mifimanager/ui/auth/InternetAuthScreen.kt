@@ -233,15 +233,32 @@ private fun AuthTerminalCard(
             }
 
             if (terminal.expireTime.isNotEmpty()) {
+                val remaining = terminal.remainingTime()
                 Text(
-                    text = "过期时间：${terminal.expireTime}",
+                    text = "过期：${terminal.expireTime}（$remaining）",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            if (!isAuth) {
+            if (!isAuth || isVerifying) {
                 HorizontalDivider()
+
+                if (!isAuth && !isVerifying) {
+                    Text(
+                        text = "需要认证",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                if (isVerifying && isAuth) {
+                    Text(
+                        text = "重新认证",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
 
                 if (!smsSent) {
                     OutlinedTextField(
@@ -285,6 +302,17 @@ private fun AuthTerminalCard(
                             shape = MaterialTheme.shapes.large
                         ) { Text("验证") }
                     }
+                }
+            }
+
+            if (isAuth && !isVerifying) {
+                HorizontalDivider()
+                OutlinedButton(
+                    onClick = { onSendSms("") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large
+                ) {
+                    Text("重新认证")
                 }
             }
         }

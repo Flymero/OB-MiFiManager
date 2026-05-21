@@ -45,10 +45,18 @@ data class DhcpInfo(
     @SerializedName("lease_time") val leaseTime: String = "",
     @SerializedName("ip") val ip: String = "",
     @SerializedName("mask") val mask: String = "",
-    @SerializedName("dns_enable") val dnsEnable: String = "",
+    @SerializedName("dns_enable") val dnsEnable: String = "0",
     @SerializedName("dns1") val dns1: String = "",
     @SerializedName("dns2") val dns2: String = "",
-    @SerializedName("mac") val mac: String = ""
+    @SerializedName("mac") val mac: String = "",
+    @SerializedName("redirect_enable") val redirectEnable: String = "0",
+    @SerializedName("redirect_url") val redirectUrl: String = "",
+    @SerializedName("Fixed_IP_list") val fixedIpList: List<FixedIpEntry> = emptyList()
+)
+
+data class FixedIpEntry(
+    @SerializedName("mac") val mac: String = "",
+    @SerializedName("ip") val ip: String = ""
 )
 
 data class LoginInfo(

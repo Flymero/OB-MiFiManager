@@ -136,6 +136,47 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
+    fun saveDns(enable: Boolean, dns1: String, dns2: String) {
+        viewModelScope.launch {
+            val data = linkedMapOf<String, Any>(
+                "dns_enable" to if (enable) "1" else "0",
+                "dns1" to dns1,
+                "dns2" to dns2
+            )
+            val result = repository.setLan(data)
+            _state.value = _state.value.copy(
+                actionResult = if (result.getOrNull()?.isSuccess == true) "DNS 设置已保存" else "DNS 设置失败"
+            )
+            refresh()
+        }
+    }
+
+    fun addStaticIp(mac: String, ip: String) {
+        viewModelScope.launch {
+            val data = linkedMapOf<String, Any>(
+                "Fixed_IP_list" to listOf(mapOf("index" to 1, "mac" to mac, "ip" to ip))
+            )
+            val result = repository.setLan(data)
+            _state.value = _state.value.copy(
+                actionResult = if (result.getOrNull()?.isSuccess == true) "静态 IP 已添加" else "添加失败"
+            )
+            refresh()
+        }
+    }
+
+    fun deleteStaticIp(mac: String) {
+        viewModelScope.launch {
+            val data = linkedMapOf<String, Any>(
+                "Fixed_IP_list" to listOf(mapOf("delete" to 1, "mac" to mac))
+            )
+            val result = repository.setLan(data)
+            _state.value = _state.value.copy(
+                actionResult = if (result.getOrNull()?.isSuccess == true) "静态 IP 已删除" else "删除失败"
+            )
+            refresh()
+        }
+    }
+
     fun setMacBlacklistEnabled(enabled: Boolean) {
         viewModelScope.launch {
             val previous = _state.value.macFiltersInfo

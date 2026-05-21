@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.PowerSettingsNew
@@ -92,7 +93,10 @@ fun DeviceScreen(
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showNetworkModeSheet by remember { mutableStateOf(false) }
     var showAddMacDialog by remember { mutableStateOf(false) }
+    var showAddStaticIpDialog by remember { mutableStateOf(false) }
     var deviceInfoExpanded by remember { mutableStateOf(false) }
+    var dnsExpanded by remember { mutableStateOf(false) }
+    var staticIpExpanded by remember { mutableStateOf(false) }
 
     LifecycleResumeEffect(Unit) {
         viewModel.onResume()
@@ -179,7 +183,16 @@ fun DeviceScreen(
                 onOpenModeSheet = { showNetworkModeSheet = true }
             )
 
-            DhcpCard(dhcp = dhcp)
+            DhcpCard(
+                dhcp = dhcp,
+                dnsExpanded = dnsExpanded,
+                onToggleDns = { dnsExpanded = !dnsExpanded },
+                onSaveDns = viewModel::saveDns,
+                staticIpExpanded = staticIpExpanded,
+                onToggleStaticIp = { staticIpExpanded = !staticIpExpanded },
+                onAddStaticIp = { showAddStaticIpDialog = true },
+                onDeleteStaticIp = viewModel::deleteStaticIp
+            )
 
             MacBlacklistCard(
                 macFilters = state.macFiltersInfo,
@@ -366,6 +379,43 @@ fun DeviceScreen(
             dismissButton = { TextButton(onClick = { showAddMacDialog = false }) { Text("取消") } }
         )
     }
+
+    if (showAddStaticIpDialog) {
+        var staticMac by remember { mutableStateOf("") }
+        var staticIp by remember { mutableStateOf("192.168.1.") }
+        AlertDialog(
+            onDismissRequest = { showAddStaticIpDialog = false },
+            title = { Text("添加静态 IP 绑定") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = staticMac,
+                        onValueChange = { staticMac = it.uppercase() },
+                        label = { Text("MAC 地址") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = staticIp,
+                        onValueChange = { staticIp = it },
+                        label = { Text("IP 地址") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showAddStaticIpDialog = false
+                        viewModel.addStaticIp(staticMac, staticIp)
+                    },
+                    enabled = isValidMacAddress(staticMac) && staticIp.count { it == '.' } == 3
+                ) { Text("添加") }
+            },
+            dismissButton = { TextButton(onClick = { showAddStaticIpDialog = false }) { Text("取消") } }
+        )
+    }
 }
 
 @Composable
@@ -531,13 +581,125 @@ private fun NetworkCard(
 }
 
 @Composable
-private fun DhcpCard(dhcp: DhcpInfo) {
+private fun DhcpCard(
+    dhcp: DhcpInfo,
+    dnsExpanded: Boolean,
+    onToggleDns: () -> Unit,
+    onSaveDns: (Boolean, String, String) -> Unit,
+    staticIpExpanded: Boolean,
+    onToggleStaticIp: () -> Unit,
+    onAddStaticIp: () -> Unit,
+    onDeleteStaticIp: (String) -> Unit
+) {
+    var dns1 by remember(dhcp.dns1) { mutableStateOf(dhcp.dns1) }
+    var dns2 by remember(dhcp.dns2) { mutableStateOf(dhcp.dns2) }
+
     ManagementCard(title = "DHCP 设置") {
         InfoRow("状态", if (dhcp.status == "1") "启用" else "禁用")
         InfoRow("IP 地址", dhcp.ip.ifBlank { "--" })
         InfoRow("子网掩码", dhcp.mask.ifBlank { "--" })
         InfoRow("地址池", "${dhcp.start.ifBlank { "--" }} - ${dhcp.end.ifBlank { "--" }}")
         InfoRow("租约时间", "${(dhcp.leaseTime.toLongOrNull() ?: 0) / 3600} 小时")
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggleDns)
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("自定义 DNS", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Icon(
+                if (dnsExpanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        AnimatedVisibility(dnsExpanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = if (dhcp.dnsEnable == "1") "已启用自定义 DNS" else "使用运营商默认 DNS",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = dns1,
+                    onValueChange = { dns1 = it },
+                    label = { Text("DNS 1") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = dns2,
+                    onValueChange = { dns2 = it },
+                    label = { Text("DNS 2") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { onSaveDns(false, "", "") },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("恢复默认") }
+                    Button(
+                        onClick = { onSaveDns(true, dns1, dns2) },
+                        modifier = Modifier.weight(1f),
+                        enabled = dns1.isNotBlank()
+                    ) { Text("保存") }
+                }
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggleStaticIp)
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("静态 IP 绑定", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Icon(
+                if (staticIpExpanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        AnimatedVisibility(staticIpExpanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (dhcp.fixedIpList.isEmpty()) {
+                    Text(
+                        text = "暂无静态 IP 绑定",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    dhcp.fixedIpList.forEach { entry ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(entry.mac, style = MaterialTheme.typography.bodySmall)
+                                Text(entry.ip, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            }
+                            TextButton(onClick = { onDeleteStaticIp(entry.mac) }) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = null)
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+                }
+                OutlinedButton(onClick = onAddStaticIp, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Text("  添加绑定")
+                }
+            }
+        }
     }
 }
 

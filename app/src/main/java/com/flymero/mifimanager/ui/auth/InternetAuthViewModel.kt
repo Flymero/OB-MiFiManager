@@ -49,6 +49,10 @@ class InternetAuthViewModel @Inject constructor(
     }
 
     fun sendSms(phoneNum: String, mac: String) {
+        if (phoneNum.isBlank()) {
+            _state.value = _state.value.copy(verifyingMac = mac, smsSent = false)
+            return
+        }
         viewModelScope.launch {
             val result = repository.sendSmsAuth(phoneNum, mac)
             if (result.isSuccess && result.getOrNull()?.isSuccess == true) {
@@ -60,7 +64,7 @@ class InternetAuthViewModel @Inject constructor(
                 )
             } else {
                 _state.value = _state.value.copy(
-                    actionResult = result.getOrNull()?.message ?: "发送失败"
+                    actionResult = result.getOrNull()?.message?.ifBlank { "发送失败" } ?: "发送失败"
                 )
             }
         }
@@ -79,7 +83,7 @@ class InternetAuthViewModel @Inject constructor(
                 refresh()
             } else {
                 _state.value = _state.value.copy(
-                    actionResult = result.getOrNull()?.message ?: "验证失败"
+                    actionResult = result.getOrNull()?.message?.ifBlank { "验证失败" } ?: "验证失败"
                 )
             }
         }

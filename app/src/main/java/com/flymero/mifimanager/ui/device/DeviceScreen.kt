@@ -3,8 +3,10 @@ package com.flymero.mifimanager.ui.device
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,11 +16,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.LightMode
@@ -327,6 +331,23 @@ fun DeviceScreen(
         )
     }
 
+    if (state.isRestarting) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("设备重启中") },
+            text = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Text("正在等待设备重新上线，请勿关闭应用…")
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
     if (showAddMacDialog) {
         var macAddress by remember { mutableStateOf("") }
         AlertDialog(
@@ -465,11 +486,11 @@ private fun SimManagementCard(
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    isCurrent -> Text(
-                        text = "当前使用",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
+                    isCurrent -> Icon(
+                        Icons.Default.Check,
+                        contentDescription = "当前使用",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
                     )
                     sim.isBanned() -> Text(
                         text = "已禁用",
@@ -488,11 +509,27 @@ private fun SimManagementCard(
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-        TextButton(onClick = { if (simInfo.switchMode != "0") onSwitchSim("4") }) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (simInfo.switchMode != "0") Modifier.clickable { onSwitchSim("4") } else Modifier)
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = if (simInfo.switchMode == "0") "✓ 智能选网" else "切换到智能选网",
+                text = "智能选网",
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (simInfo.switchMode == "0") FontWeight.SemiBold else FontWeight.Normal
             )
+            if (simInfo.switchMode == "0") {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = "当前模式",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
     }
 }
@@ -788,4 +825,5 @@ private fun isCurrentSim(
 private fun copyToClipboard(context: Context, label: String, value: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
+    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
 }

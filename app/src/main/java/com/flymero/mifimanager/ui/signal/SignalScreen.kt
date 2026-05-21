@@ -179,9 +179,9 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
                 SectionDivider()
                 KeyValueRow("DNS 2", pdp.dns2.ifBlank { "--" })
                 SectionDivider()
-                KeyValueRow("本次连接", pdp.formattedCurrentConn())
+                KeyValueRow("本次连接", formatDuration(state.localCurrentConnSeconds))
                 SectionDivider()
-                KeyValueRow("累计在线", pdp.formattedTotalConn())
+                KeyValueRow("累计在线", formatDuration(state.localTotalConnSeconds))
             }
         }
     }
@@ -252,4 +252,18 @@ private fun LteInfo.qualityText(score: Int): String = when {
     score >= 65 -> "良好"
     score >= 45 -> "一般"
     else -> "较弱"
+}
+
+private fun formatDuration(seconds: Long): String {
+    if (seconds <= 0) return "--"
+    val days = seconds / 86400
+    val hours = (seconds % 86400) / 3600
+    val minutes = (seconds % 3600) / 60
+    val secs = seconds % 60
+    return buildList {
+        if (days > 0) add("${days}天")
+        if (hours > 0 || days > 0) add("${hours}小时")
+        if (minutes > 0 || hours > 0 || days > 0) add("${minutes}分钟")
+        add("${secs}秒")
+    }.joinToString("")
 }

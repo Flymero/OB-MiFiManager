@@ -3,6 +3,7 @@ package com.flymero.mifimanager.ui.devices
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -321,7 +322,7 @@ private fun ClientDeviceItem(
             add(DeviceMenuItem("复制 MAC", {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("mac", device.mac))
-                viewModel.showMessage("已复制 MAC 地址")
+                Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
             }))
             if (isBlocked) {
                 add(DeviceMenuItem("解除屏蔽", { viewModel.unblockDevice(device.mac) }))
@@ -369,6 +370,7 @@ private fun DeviceTrafficDetailSheet(
             KeyValueRow(label = "MAC", value = device.mac, onCopy = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("mac", device.mac))
+                Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
             }, valueMaxLines = 2)
             HorizontalDivider()
             InfoRow(label = "IP", value = device.ip.takeUnless { it.isBlank() || it == "NA" } ?: "--")

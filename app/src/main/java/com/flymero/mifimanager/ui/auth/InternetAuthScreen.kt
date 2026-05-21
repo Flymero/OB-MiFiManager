@@ -12,17 +12,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -42,8 +42,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.flymero.mifimanager.ui.theme.SignalExcellent
-import com.flymero.mifimanager.ui.theme.SignalBad
 
 @Composable
 fun InternetAuthScreen(viewModel: InternetAuthViewModel = hiltViewModel()) {
@@ -93,74 +91,81 @@ fun InternetAuthScreen(viewModel: InternetAuthViewModel = hiltViewModel()) {
         return
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "上网认证",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
-            IconButton(onClick = { viewModel.refresh() }) {
-                Icon(Icons.Default.Refresh, contentDescription = "刷新")
-            }
-        }
-
-        Text(
-            text = "通过短信验证码认证设备上网权限",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (state.terminals.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                    tint = SignalExcellent
-                )
                 Text(
-                    text = "暂无需要认证的设备",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "上网认证",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
-            }
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.terminals) { terminal ->
-                    AuthTerminalCard(
-                        terminal = terminal,
-                        isVerifying = state.verifyingMac == terminal.terminalMac,
-                        smsSent = state.smsSent && state.verifyingMac == terminal.terminalMac,
-                        onSendSms = { phoneNum ->
-                            viewModel.sendSms(phoneNum, terminal.terminalMac)
-                        },
-                        onVerify = { code ->
-                            viewModel.verifyCode(terminal.terminalMac, code)
-                        },
-                        onCancel = { viewModel.cancelVerify() }
+                IconButton(
+                    onClick = { viewModel.refresh() },
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
                     )
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                }
+            }
+
+            Text(
+                text = "通过短信验证码认证设备上网权限",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (state.terminals.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "暂无需要认证的设备",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(state.terminals) { terminal ->
+                        AuthTerminalCard(
+                            terminal = terminal,
+                            isVerifying = state.verifyingMac == terminal.terminalMac,
+                            smsSent = state.smsSent && state.verifyingMac == terminal.terminalMac,
+                            onSendSms = { phoneNum ->
+                                viewModel.sendSms(phoneNum, terminal.terminalMac)
+                            },
+                            onVerify = { code ->
+                                viewModel.verifyCode(terminal.terminalMac, code)
+                            },
+                            onCancel = { viewModel.cancelVerify() }
+                        )
+                    }
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        SnackbarHost(hostState = snackbarHostState)
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
     }
 }
 
@@ -176,17 +181,20 @@ private fun AuthTerminalCard(
     var phoneNum by remember { mutableStateOf("") }
     var verifyCode by remember { mutableStateOf("") }
 
-    Card(
+    val isAuth = terminal.isAuthenticated()
+
+    androidx.compose.material3.Surface(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (terminal.isAuthenticated())
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else
-                MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        shape = MaterialTheme.shapes.large
+        shape = MaterialTheme.shapes.large,
+        color = if (isAuth) MaterialTheme.colorScheme.surfaceContainerLow
+        else MaterialTheme.colorScheme.surfaceContainerLow,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isAuth) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+        )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -208,23 +216,32 @@ private fun AuthTerminalCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (terminal.expireTime.isNotEmpty()) {
-                        Text(
-                            text = "过期时间: ${terminal.expireTime}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = if (terminal.isAuthenticated()) SignalExcellent else SignalBad
+                if (isAuth) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = "已认证",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "未认证",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            if (terminal.expireTime.isNotEmpty()) {
+                Text(
+                    text = "过期时间：${terminal.expireTime}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            if (!terminal.isAuthenticated()) {
-                Spacer(modifier = Modifier.height(12.dp))
+            if (!isAuth) {
+                HorizontalDivider()
 
                 if (!smsSent) {
                     OutlinedTextField(
@@ -235,14 +252,13 @@ private fun AuthTerminalCard(
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Button(
                         onClick = { onSendSms(phoneNum) },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = phoneNum.length >= 11
+                        enabled = phoneNum.length >= 11,
+                        shape = MaterialTheme.shapes.large
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = null)
-                        Text("  发送验证码")
+                        Text("发送验证码")
                     }
                 } else {
                     OutlinedTextField(
@@ -253,19 +269,20 @@ private fun AuthTerminalCard(
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
                             onClick = onCancel,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.large
                         ) { Text("取消") }
                         Button(
                             onClick = { onVerify(verifyCode) },
                             modifier = Modifier.weight(1f),
-                            enabled = verifyCode.isNotEmpty()
+                            enabled = verifyCode.isNotEmpty(),
+                            shape = MaterialTheme.shapes.large
                         ) { Text("验证") }
                     }
                 }

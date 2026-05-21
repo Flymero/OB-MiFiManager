@@ -19,7 +19,9 @@ data class SignalState(
     val statusInfo: StatusInfo = StatusInfo(),
     val pdpContext: PdpContext? = null,
     val networkName: String = "",
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val localCurrentConnSeconds: Long = 0,
+    val localTotalConnSeconds: Long = 0
 )
 
 @HiltViewModel
@@ -29,6 +31,9 @@ class SignalViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(SignalState())
     val state: StateFlow<SignalState> = _state
+
+    private var lastApiCurrentConn: Long = 0
+    private var lastApiTotalConn: Long = 0
 
     init {
         viewModelScope.launch {
@@ -41,6 +46,14 @@ class SignalViewModel @Inject constructor(
                 val pdpInfo = pdp.getOrDefault(WanPdpContextInfo())
                 val newPdp = pdpInfo.pdpList.firstOrNull() ?: _state.value.pdpContext
                 val newNetwork = pdpInfo.networkName.ifBlank { _state.value.networkName }
+
+                val apiCurrent = newPdp?.currentConnSeconds?.toLongOrNull() ?: 0
+                val apiTotal = newPdp?.totalConnSeconds?.toLongOrNull() ?: 0
+                if (apiCurrent != lastApiCurrentConn || apiTotal != lastApiTotalConn) {
+                    lastApiCurrentConn = apiCurrent
+                    lastApiTotalConn = apiTotal
+                }
+
                 if (newEng != _state.value.engineeringInfo ||
                     newStatus != _state.value.statusInfo ||
                     newPdp != _state.value.pdpContext ||
@@ -52,10 +65,29 @@ class SignalViewModel @Inject constructor(
                         statusInfo = newStatus,
                         pdpContext = newPdp,
                         networkName = newNetwork,
-                        isLoading = false
+                        isLoading = false,
+                        localCurrentConnSeconds = apiCurrent,
+                        localTotalConnSeconds = apiTotal
                     )
                 }
                 delay(5000)
+            }
+        }
+        startConnTimeTicker()
+    }
+
+    private fun startConnTimeTicker() {
+        viewModelScope.launch {
+            while (true) {
+                delay(1000)
+                val current = _state.value.localCurrentConnSeconds
+                val total = _state.value.localTotalConnSeconds
+                if (current > 0 || total > 0) {
+                    _state.value = _state.value.copy(
+                        localCurrentConnSeconds = current + 1,
+                        localTotalConnSeconds = total + 1
+                    )
+                }
             }
         }
     }

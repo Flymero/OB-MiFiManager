@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.flymero.mifimanager.data.local.DataStoreHelper
 import com.flymero.mifimanager.data.model.*
 import com.flymero.mifimanager.data.repository.MiFiRepository
+import com.flymero.mifimanager.ui.GlobalMessageBus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -37,7 +38,8 @@ data class DeviceState(
 @HiltViewModel
 class DeviceViewModel @Inject constructor(
     private val repository: MiFiRepository,
-    private val dataStore: DataStoreHelper
+    private val dataStore: DataStoreHelper,
+    private val globalMessageBus: GlobalMessageBus
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DeviceState())
@@ -109,9 +111,11 @@ class DeviceViewModel @Inject constructor(
     fun restartDevice() {
         viewModelScope.launch {
             val result = repository.restartDevice()
-            _state.value = _state.value.copy(
-                actionResult = if (result.getOrNull() == true) "设备正在重启…" else "重启失败"
-            )
+            if (result.getOrNull() == true) {
+                globalMessageBus.post("设备正在重启…")
+            } else {
+                _state.value = _state.value.copy(actionResult = "重启失败")
+            }
         }
     }
 

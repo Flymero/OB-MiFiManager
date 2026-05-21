@@ -28,6 +28,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +44,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.flymero.mifimanager.data.local.DataStoreHelper
 import com.flymero.mifimanager.ui.auth.InternetAuthScreen
+import com.flymero.mifimanager.ui.GlobalMessageBus
 import com.flymero.mifimanager.ui.dashboard.DashboardScreen
 import com.flymero.mifimanager.ui.device.DeviceScreen
 import com.flymero.mifimanager.ui.devices.DevicesScreen
@@ -50,6 +52,11 @@ import com.flymero.mifimanager.ui.login.LoginScreen
 import com.flymero.mifimanager.ui.login.LoginViewModel
 import com.flymero.mifimanager.ui.signal.SignalScreen
 import com.flymero.mifimanager.ui.wifi.WifiScreen
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Dashboard : Screen("dashboard", "仪表盘", Icons.Default.Dashboard)
@@ -68,6 +75,12 @@ val bottomNavItems = listOf(
 )
 
 val LocalGlobalSnackbar = compositionLocalOf<SnackbarHostState> { error("No SnackbarHostState provided") }
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface GlobalMessageBusEntryPoint {
+    fun globalMessageBus(): GlobalMessageBus
+}
 
 @Composable
 fun MiFiNavHost() {
@@ -88,6 +101,17 @@ fun MiFiNavHost() {
     val showBottomBar = currentRoute != null && !isLoginRoute
 
     val globalSnackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val globalMessageBus = remember {
+        EntryPointAccessors.fromApplication(context.applicationContext, GlobalMessageBusEntryPoint::class.java)
+            .globalMessageBus()
+    }
+
+    LaunchedEffect(Unit) {
+        globalMessageBus.messages.collect { message ->
+            scope.launch { globalSnackbarHostState.showSnackbar(message) }
+        }
+    }
 
     CompositionLocalProvider(LocalGlobalSnackbar provides globalSnackbarHostState) {
         Scaffold(

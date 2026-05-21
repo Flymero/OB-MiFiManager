@@ -104,6 +104,7 @@ class MiFiRepository @Inject constructor(
     suspend fun getWlanInfo(): Result<WlanInfo> = runCatching { api.getWlanInfo() }
     suspend fun getWlanSecurityInfo(): Result<WlanSecurityInfo> = runCatching { api.getWlanSecurityInfo() }
     suspend fun getWanInfo(): Result<WanInfo> = runCatching { api.getWanInfo() }
+    suspend fun getWanPdpContextInfo(): Result<WanPdpContextInfo> = runCatching { api.getWanPdpContextInfo() }
     suspend fun getApnProfileInfo(): Result<ApnProfileInfo> = runCatching { api.getApnProfileInfo() }
     suspend fun getDeviceManagementInfo(): Result<DeviceManagementInfo> = runCatching { api.getDeviceManagementInfo() }
     suspend fun getDhcpInfo(): Result<DhcpInfo> = runCatching { api.getDhcpInfo() }

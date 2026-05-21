@@ -295,7 +295,8 @@ fun DeviceListItem(
     isBlocked: Boolean,
     menuItems: List<DeviceMenuItem>,
     modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    extraInfo: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
     Surface(
@@ -353,6 +354,15 @@ fun DeviceListItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (!extraInfo.isNullOrBlank()) {
+                    Text(
+                        text = extraInfo,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             Text(
                 text = statusText,

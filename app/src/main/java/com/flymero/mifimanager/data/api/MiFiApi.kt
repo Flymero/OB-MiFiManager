@@ -29,6 +29,9 @@ interface MiFiApi {
     suspend fun getWanInfo(@Query("file") file: String = "json_wan_info"): WanInfo
 
     @GET("xml_action.cgi?method=get&module=duster")
+    suspend fun getWanPdpContextInfo(@Query("file") file: String = "json_wan_pdp_context_info"): WanPdpContextInfo
+
+    @GET("xml_action.cgi?method=get&module=duster")
     suspend fun getApnProfileInfo(@Query("file") file: String = "json_wan_apn_profile_info"): ApnProfileInfo
 
     @GET("xml_action.cgi?method=get&module=duster")

@@ -83,5 +83,31 @@ data class ClientDevice(
 
     fun trafficActivityText(): String = if (hasTrafficActivity()) "有记录" else "暂无记录"
 
+    fun formattedTimeAdded(): String {
+        val raw = timeAdded.trim()
+        if (raw.isBlank()) return "--"
+        return try {
+            val (datePart, timePart) = raw.split(" ", limit = 2)
+            val (m, d, y) = datePart.split("/").map { it.toInt() }
+            val (h, min) = timePart.split(":").take(2).map { it.toInt() }
+            "%04d-%02d-%02d %02d:%02d".format(y, m, d, h, min)
+        } catch (e: Exception) {
+            raw
+        }
+    }
+
+    fun shortConnectionDuration(): String {
+        val seconds = totalConnectionSeconds.toLongOrNull() ?: return "--"
+        if (seconds <= 0) return "--"
+        val days = seconds / 86400
+        val hours = (seconds % 86400) / 3600
+        val minutes = (seconds % 3600) / 60
+        return when {
+            days > 0 -> "${days}天${hours}小时"
+            hours > 0 -> "${hours}小时${minutes}分"
+            else -> "${minutes}分"
+        }
+    }
+
     private fun trafficFields(): List<String> = listOf(rx, tx, rxMonth, txMonth, rxLast3Days, txLast3Days)
 }

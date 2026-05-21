@@ -308,6 +308,10 @@ private fun ClientDeviceItem(
     onOpenDetails: () -> Unit
 ) {
     val isCurrentDevice = currentDeviceMac.isNotBlank() && device.mac.trim().replace('-', ':').uppercase() == currentDeviceMac
+    val extra = buildList {
+        device.formattedTimeAdded().takeIf { it != "--" }?.let { add("首次 $it") }
+        device.shortConnectionDuration().takeIf { it != "--" }?.let { add("累计 $it") }
+    }.joinToString(" · ").ifBlank { null }
     DeviceListItem(
         name = device.decodedName(),
         mac = device.mac,
@@ -315,6 +319,7 @@ private fun ClientDeviceItem(
         statusText = statusText,
         statusColor = statusColor,
         isBlocked = isBlocked,
+        extraInfo = extra,
         onClick = onOpenDetails,
         menuItems = buildList {
             add(DeviceMenuItem("查看详情", onOpenDetails))

@@ -3,7 +3,9 @@ package com.flymero.mifimanager.ui.signal
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flymero.mifimanager.data.model.EngineeringInfo
+import com.flymero.mifimanager.data.model.PdpContext
 import com.flymero.mifimanager.data.model.StatusInfo
+import com.flymero.mifimanager.data.model.WanPdpContextInfo
 import com.flymero.mifimanager.data.repository.MiFiRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -15,6 +17,8 @@ import javax.inject.Inject
 data class SignalState(
     val engineeringInfo: EngineeringInfo = EngineeringInfo(),
     val statusInfo: StatusInfo = StatusInfo(),
+    val pdpContext: PdpContext? = null,
+    val networkName: String = "",
     val isLoading: Boolean = true
 )
 
@@ -31,12 +35,23 @@ class SignalViewModel @Inject constructor(
             while (true) {
                 val eng = repository.getEngineeringInfo()
                 val status = repository.getStatusInfo()
+                val pdp = repository.getWanPdpContextInfo()
                 val newEng = eng.getOrDefault(_state.value.engineeringInfo)
                 val newStatus = status.getOrDefault(_state.value.statusInfo)
-                if (newEng != _state.value.engineeringInfo || newStatus != _state.value.statusInfo || _state.value.isLoading) {
+                val pdpInfo = pdp.getOrDefault(WanPdpContextInfo())
+                val newPdp = pdpInfo.pdpList.firstOrNull() ?: _state.value.pdpContext
+                val newNetwork = pdpInfo.networkName.ifBlank { _state.value.networkName }
+                if (newEng != _state.value.engineeringInfo ||
+                    newStatus != _state.value.statusInfo ||
+                    newPdp != _state.value.pdpContext ||
+                    newNetwork != _state.value.networkName ||
+                    _state.value.isLoading
+                ) {
                     _state.value = SignalState(
                         engineeringInfo = newEng,
                         statusInfo = newStatus,
+                        pdpContext = newPdp,
+                        networkName = newNetwork,
                         isLoading = false
                     )
                 }

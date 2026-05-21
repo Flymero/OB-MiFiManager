@@ -137,7 +137,7 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
             SectionDivider()
             KeyValueRow("上行 EARFCN", lte.ulEuArfcn)
             SectionDivider()
-            KeyValueRow("CQI", lte.cqi)
+            KeyValueRow("CQI", "${lte.cqi} (0-15)")
             SectionDivider()
             KeyValueRow("RSSI", "${lte.rssi} dBm")
             SectionDivider()
@@ -146,6 +146,40 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
             KeyValueRow("下行吞吐", "${lte.dlThroughPut} Mbps")
             SectionDivider()
             KeyValueRow("上行吞吐", "${lte.ulThroughPut} Mbps")
+        }
+
+        if (lte.mainRsrp.isNotBlank() || lte.diversityRsrp.isNotBlank()) {
+            SectionCard {
+                CardTitle("双天线 (MIMO)")
+                KeyValueRow("主天线 RSRP", if (lte.mainRsrp.isNotBlank()) "-${lte.mainRsrp} dBm" else "--")
+                SectionDivider()
+                KeyValueRow("分集 RSRP", if (lte.diversityRsrp.isNotBlank()) "-${lte.diversityRsrp} dBm" else "--")
+                SectionDivider()
+                KeyValueRow("主天线 RSRQ", if (lte.mainRsrq.isNotBlank()) "-${lte.mainRsrq} dB" else "--")
+                SectionDivider()
+                KeyValueRow("分集 RSRQ", if (lte.diversityRsrq.isNotBlank()) "-${lte.diversityRsrq} dB" else "--")
+            }
+        }
+
+        state.pdpContext?.let { pdp ->
+            SectionCard {
+                CardTitle("网络详情")
+                if (state.networkName.isNotBlank()) {
+                    KeyValueRow("运营商", state.networkName)
+                    SectionDivider()
+                }
+                KeyValueRow("WAN IP", pdp.ipv4.ifBlank { "--" })
+                SectionDivider()
+                KeyValueRow("网关", pdp.gateway.ifBlank { "--" })
+                SectionDivider()
+                KeyValueRow("DNS 1", pdp.dns1.ifBlank { "--" })
+                SectionDivider()
+                KeyValueRow("DNS 2", pdp.dns2.ifBlank { "--" })
+                SectionDivider()
+                KeyValueRow("本次连接", pdp.formattedCurrentConn())
+                SectionDivider()
+                KeyValueRow("累计在线", pdp.formattedTotalConn())
+            }
         }
     }
 }

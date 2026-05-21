@@ -17,10 +17,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,6 +67,8 @@ val bottomNavItems = listOf(
     Screen.Device
 )
 
+val LocalGlobalSnackbar = compositionLocalOf<SnackbarHostState> { error("No SnackbarHostState provided") }
+
 @Composable
 fun MiFiNavHost() {
     val navController = rememberNavController()
@@ -81,8 +87,12 @@ fun MiFiNavHost() {
     val isLoginRoute = currentRoute?.startsWith("login") == true
     val showBottomBar = currentRoute != null && !isLoginRoute
 
-    Scaffold(
-        bottomBar = {
+    val globalSnackbarHostState = remember { SnackbarHostState() }
+
+    CompositionLocalProvider(LocalGlobalSnackbar provides globalSnackbarHostState) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(hostState = globalSnackbarHostState) },
+            bottomBar = {
             if (showBottomBar) {
                 NavigationBar {
                     bottomNavItems.forEach { screen ->
@@ -151,4 +161,5 @@ fun MiFiNavHost() {
             }
         }
     }
+}
 }

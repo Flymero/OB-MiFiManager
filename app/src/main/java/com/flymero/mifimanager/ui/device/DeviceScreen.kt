@@ -44,7 +44,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -72,6 +71,7 @@ import com.flymero.mifimanager.data.model.SimCard
 import com.flymero.mifimanager.data.model.SimInfo
 import com.flymero.mifimanager.data.model.WanInfo
 import com.flymero.mifimanager.data.model.WlanMacFiltersInfo
+import com.flymero.mifimanager.navigation.LocalGlobalSnackbar
 import com.flymero.mifimanager.ui.components.InfoRow
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.theme.LocalThemeControl
@@ -85,7 +85,7 @@ fun DeviceScreen(
     viewModel: DeviceViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = LocalGlobalSnackbar.current
     val context = LocalContext.current
     var showRestartDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
@@ -199,11 +199,6 @@ fun DeviceScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
-
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
     }
 
     if (showNetworkModeSheet) {
@@ -328,23 +323,6 @@ fun DeviceScreen(
                 ) { Text("保存") }
             },
             dismissButton = { TextButton(onClick = { showPasswordDialog = false }) { Text("取消") } }
-        )
-    }
-
-    if (state.isRestarting) {
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text("设备重启中") },
-            text = {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                    Text("正在等待设备重新上线，请勿关闭应用…")
-                }
-            },
-            confirmButton = {}
         )
     }
 

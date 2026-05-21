@@ -31,8 +31,7 @@ data class DeviceState(
     val isPlanLoading: Boolean = false,
     val actionResult: String? = null,
     val isLoggedOut: Boolean = false,
-    val isMacFilterSyncing: Boolean = false,
-    val isRestarting: Boolean = false
+    val isMacFilterSyncing: Boolean = false
 )
 
 @HiltViewModel
@@ -110,28 +109,9 @@ class DeviceViewModel @Inject constructor(
     fun restartDevice() {
         viewModelScope.launch {
             val result = repository.restartDevice()
-            if (result.getOrNull() == true) {
-                _state.value = _state.value.copy(isRestarting = true)
-                waitForDeviceReboot()
-            } else {
-                _state.value = _state.value.copy(actionResult = "重启失败")
-            }
-        }
-    }
-
-    private fun waitForDeviceReboot() {
-        viewModelScope.launch {
-            delay(10000)
-            repeat(30) {
-                delay(3000)
-                val reachable = repository.getStatusInfo().isSuccess
-                if (reachable) {
-                    _state.value = _state.value.copy(isRestarting = false, actionResult = "设备已重启完成")
-                    refresh()
-                    return@launch
-                }
-            }
-            _state.value = _state.value.copy(isRestarting = false, actionResult = "设备重启超时，请检查连接")
+            _state.value = _state.value.copy(
+                actionResult = if (result.getOrNull() == true) "设备正在重启…" else "重启失败"
+            )
         }
     }
 

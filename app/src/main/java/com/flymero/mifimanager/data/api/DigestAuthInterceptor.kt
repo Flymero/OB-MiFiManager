@@ -18,6 +18,12 @@ class DigestAuthInterceptor(
         this.password = password
     }
 
+    fun clearCredentials() {
+        this.username = ""
+        this.password = ""
+        this.nonce = ""
+    }
+
     fun updateNonce(realm: String, nonce: String, qop: String = "auth") {
         this.realm = realm
         this.nonce = nonce

@@ -117,7 +117,10 @@ class MiFiRepository @Inject constructor(
     suspend fun getStatisticsInfo(): Result<StatisticsInfo> = runCatching { api.getStatisticsInfo() }
     suspend fun getSimInfo(): Result<SimInfo> = runCatching { api.getSimInfo() }
     suspend fun getSmsAuthTerminalList(): Result<SmsAuthTerminalList> = runCatching { api.getSmsAuthTerminalList() }
-    suspend fun logout(): Result<Unit> = runCatching { api.logout() }
+    suspend fun logout(): Result<Unit> = runCatching {
+        api.logout()
+        digestAuthInterceptor.clearCredentials()
+    }
 
     private fun jsonBody(data: Any): okhttp3.RequestBody {
         return gson.toJson(data).toRequestBody("application/json".toMediaType())

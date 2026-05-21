@@ -173,7 +173,7 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(cellularConnecting = true)
             repository.toggleCellular(connect)
-            delay(2000)
+            delay(if (connect) 8000 else 2000)
             refreshHomepage()
             _state.value = _state.value.copy(cellularConnecting = false)
         }

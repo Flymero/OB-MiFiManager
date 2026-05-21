@@ -183,9 +183,16 @@ class MiFiRepository @Inject constructor(
 
     suspend fun toggleCellular(connect: Boolean): Result<ApiResult> =
         runCatching {
-            api.setWan(jsonBody(mapOf(
-                "connect_disconnect" to if (connect) "cellular" else "disabled"
-            )))
+            if (connect) {
+                api.setWan(jsonBody(mapOf(
+                    "connect_disconnect" to "cellular",
+                    "connect_mode" to "0"
+                )))
+            } else {
+                api.setWan(jsonBody(mapOf(
+                    "connect_disconnect" to "disabled"
+                )))
+            }
         }
 
     suspend fun sendSmsAuth(phoneNum: String, mac: String): Result<SmsAuthResult> =

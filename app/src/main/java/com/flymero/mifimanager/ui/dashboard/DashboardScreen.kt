@@ -3,6 +3,7 @@ package com.flymero.mifimanager.ui.dashboard
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
@@ -688,6 +689,7 @@ private fun PackageDetailSheet(
                             IconButton(onClick = {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("recharge_no", equipment.devNo))
+                                Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
                             }) {
                                 Icon(
                                     Icons.Default.ContentCopy,

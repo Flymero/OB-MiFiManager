@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -428,11 +429,13 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     }
 
     if (showOrderHistory) {
+        val orderSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = {
                 showOrderHistory = false
                 displayCount = 10
             },
+            sheetState = orderSheetState,
             containerColor = MaterialTheme.colorScheme.surface
         ) {
             OrderHistorySheet(
@@ -866,6 +869,7 @@ private fun OrderHistorySheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .fillMaxHeight(0.75f)
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -898,7 +902,7 @@ private fun OrderHistorySheet(
         } else {
             val visibleOrders = orders.take(displayCount)
             LazyColumn(
-                modifier = Modifier.height(400.dp),
+                modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(visibleOrders) { order ->

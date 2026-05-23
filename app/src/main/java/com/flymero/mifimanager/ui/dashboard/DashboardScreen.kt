@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -43,6 +45,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -66,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.flymero.mifimanager.data.model.OrderItem
 import com.flymero.mifimanager.data.model.PlanInfo
 import com.flymero.mifimanager.ui.components.CardTitle
 import com.flymero.mifimanager.ui.components.KeyValueRow
@@ -400,6 +404,9 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
         )
     }
 
+    var showOrderHistory by remember { mutableStateOf(false) }
+    var displayCount by remember { mutableStateOf(10) }
+
     if (showPlanDetail && plan != null) {
         ModalBottomSheet(
             onDismissRequest = { showPlanDetail = false },
@@ -411,7 +418,33 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                 context = context,
                 isRefreshing = state.isPlanRefreshing,
                 onRefresh = viewModel::refreshPlanManually,
-                onClose = { showPlanDetail = false }
+                onClose = { showPlanDetail = false },
+                onShowOrders = {
+                    viewModel.fetchOrders()
+                    showOrderHistory = true
+                }
+            )
+        }
+    }
+
+    if (showOrderHistory) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                showOrderHistory = false
+                displayCount = 10
+            },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            OrderHistorySheet(
+                orders = state.orderList,
+                isLoading = state.isOrderLoading,
+                error = state.orderError,
+                displayCount = displayCount,
+                onLoadMore = { displayCount += 10 },
+                onClose = {
+                    showOrderHistory = false
+                    displayCount = 10
+                }
             )
         }
     }
@@ -533,7 +566,8 @@ private fun PackageDetailSheet(
     context: Context,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onShowOrders: () -> Unit
 ) {
     val daysLeft = plan.daysUntilExpire()
     val dailyBudget = plan.dailyBudget()
@@ -761,6 +795,14 @@ private fun PackageDetailSheet(
             }
         }
 
+        OutlinedButton(
+            onClick = onShowOrders,
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large
+        ) {
+            Text("历史订单")
+        }
+
         Button(
             onClick = onClose,
             modifier = Modifier.fillMaxWidth(),
@@ -809,5 +851,126 @@ private fun formatUptime(totalSeconds: Long): String {
         if (days > 0) append("${days}天 ")
         if (hours > 0) append("${hours}时 ")
         append("${minutes}分 ${secs}秒")
+    }
+}
+
+@Composable
+private fun OrderHistorySheet(
+    orders: List<OrderItem>,
+    isLoading: Boolean,
+    error: String?,
+    displayCount: Int,
+    onLoadMore: () -> Unit,
+    onClose: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = "历史订单",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        if (isLoading) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) { CircularProgressIndicator() }
+        } else if (error != null) {
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        } else if (orders.isEmpty()) {
+            Text(
+                text = "暂无订单记录",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 24.dp)
+            )
+        } else {
+            val visibleOrders = orders.take(displayCount)
+            LazyColumn(
+                modifier = Modifier.height(400.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(visibleOrders) { order ->
+                    OrderItemCard(order)
+                }
+                if (displayCount < orders.size) {
+                    item {
+                        TextButton(
+                            onClick = onLoadMore,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("查看更多（剩余 ${orders.size - displayCount} 条）")
+                        }
+                    }
+                }
+            }
+        }
+
+        Button(
+            onClick = onClose,
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large
+        ) {
+            Text("关闭")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun OrderItemCard(order: OrderItem) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = order.packageName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = order.displayTime(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "¥${order.amount}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = order.statusText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }

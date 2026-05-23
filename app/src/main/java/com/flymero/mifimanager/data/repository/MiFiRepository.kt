@@ -441,4 +441,23 @@ class MiFiRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    suspend fun getOrderList(): Result<OrderListResponse> = withContext(Dispatchers.IO) {
+        try {
+            val rechargeNo = dataStore.getRechargeNo()
+            if (rechargeNo.isEmpty()) return@withContext Result.failure(Exception("未设置充值号"))
+            val body = gson.toJson(mapOf("dev_no" to rechargeNo))
+                .toRequestBody("application/json".toMediaType())
+
+            val baseUrl = getPlanUrl().replace("/api/card/loginCard", "/api/order/orderList")
+            val request = Request.Builder().url(baseUrl).post(body).build()
+            val response = okHttpClient.newCall(request).execute()
+            val json = response.body?.string() ?: ""
+            response.close()
+            val result = gson.fromJson(json, OrderListResponse::class.java)
+            Result.success(result)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

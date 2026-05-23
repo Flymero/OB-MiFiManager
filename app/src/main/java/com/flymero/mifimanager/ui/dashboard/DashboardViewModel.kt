@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flymero.mifimanager.data.model.EngineeringInfo
 import com.flymero.mifimanager.data.model.HomepageInfo
+import com.flymero.mifimanager.data.model.OrderItem
 import com.flymero.mifimanager.data.model.PlanInfo
 import com.flymero.mifimanager.data.model.StatisticsInfo
 import com.flymero.mifimanager.data.model.StatusInfo
@@ -29,7 +30,10 @@ data class DashboardState(
     val refreshMessage: String? = null,
     val bandSummary: String = "--",
     val routerReachable: Boolean = true,
-    val lastReachableAtLeastOnce: Boolean = false
+    val lastReachableAtLeastOnce: Boolean = false,
+    val orderList: List<OrderItem> = emptyList(),
+    val isOrderLoading: Boolean = false,
+    val orderError: String? = null
 )
 
 @HiltViewModel
@@ -181,5 +185,23 @@ class DashboardViewModel @Inject constructor(
 
     fun clearRefreshMessage() {
         _state.value = _state.value.copy(refreshMessage = null)
+    }
+
+    fun fetchOrders() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isOrderLoading = true, orderError = null)
+            val result = repository.getOrderList()
+            if (result.isSuccess && result.getOrNull()?.isSuccess == true) {
+                _state.value = _state.value.copy(
+                    orderList = result.getOrNull()?.data?.list ?: emptyList(),
+                    isOrderLoading = false
+                )
+            } else {
+                _state.value = _state.value.copy(
+                    isOrderLoading = false,
+                    orderError = "获取订单失败"
+                )
+            }
+        }
     }
 }

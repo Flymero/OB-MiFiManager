@@ -449,9 +449,20 @@ class MiFiRepository @Inject constructor(
             val body = gson.toJson(mapOf("dev_no" to rechargeNo))
                 .toRequestBody("application/json".toMediaType())
 
-            val baseUrl = getPlanUrl().replace("/api/card/loginCard", "/api/order/orderList")
-            val request = Request.Builder().url(baseUrl).post(body).build()
-            val response = okHttpClient.newCall(request).execute()
+            var url = getPlanUrl().replace("/api/card/loginCard", "/api/order/orderList")
+            var response = makePlanRequest(url, body)
+
+            if (response.code in 301..302) {
+                val newUrl = response.header("Location")
+                response.close()
+                if (newUrl != null) {
+                    val orderUrl = newUrl.replace("/api/card/loginCard", "/api/order/orderList")
+                    val reBody = gson.toJson(mapOf("dev_no" to rechargeNo))
+                        .toRequestBody("application/json".toMediaType())
+                    response = makePlanRequest(orderUrl, reBody)
+                }
+            }
+
             val json = response.body?.string() ?: ""
             response.close()
             val result = gson.fromJson(json, OrderListResponse::class.java)

@@ -193,7 +193,7 @@ class DashboardViewModel @Inject constructor(
             val result = repository.getOrderList()
             if (result.isSuccess && result.getOrNull()?.isSuccess == true) {
                 _state.value = _state.value.copy(
-                    orderList = result.getOrNull()?.data?.list ?: emptyList(),
+                    orderList = result.getOrNull()?.data ?: emptyList(),
                     isOrderLoading = false
                 )
             } else {

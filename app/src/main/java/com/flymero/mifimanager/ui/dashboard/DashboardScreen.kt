@@ -946,7 +946,7 @@ private fun OrderItemCard(order: OrderItem) {
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = order.packageName,
+                    text = order.displayName(),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -966,7 +966,7 @@ private fun OrderItemCard(order: OrderItem) {
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = order.statusText,
+                    text = order.statusText(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

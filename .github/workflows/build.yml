@@ -41,7 +41,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MiFiManager-release
+          name: MiFiManager-release-unsigned
           path: app/build/outputs/apk/release/*.apk
 
       - name: Create GitHub Release
@@ -53,8 +53,7 @@ jobs:
             ## MiFi Manager ${{ github.ref_name }}
 
             ### 安装说明
-            APK 未签名，安装前需要允许"未知来源"应用安装。
-            如果覆盖安装失败，请先卸载旧版本再安装。
+            APK 未签名，安装前需要自行签名（可使用 apksigner 或 MT 管理器签名）。
 
             ### 更新内容
             详见 [提交记录](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }})

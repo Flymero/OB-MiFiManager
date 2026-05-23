@@ -41,5 +41,5 @@ data class SmsAuthResult(
     @SerializedName("code") val code: Int = -1,
     @SerializedName("message") val message: String = ""
 ) {
-    val isSuccess: Boolean get() = code == 0
+    val isSuccess: Boolean get() = code == 0 || code == 1
 }

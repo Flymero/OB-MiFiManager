@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.flymero.mifimanager.data.model.SmsAuthTerminal
 import com.flymero.mifimanager.data.repository.MiFiRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -78,8 +79,9 @@ class InternetAuthViewModel @Inject constructor(
                 _state.value = _state.value.copy(
                     smsSent = false,
                     verifyingMac = null,
-                    actionResult = "认证成功"
+                    actionResult = result.getOrNull()?.message?.ifBlank { "认证成功" } ?: "认证成功"
                 )
+                delay(1500)
                 refresh()
             } else {
                 _state.value = _state.value.copy(

@@ -308,23 +308,25 @@ class MiFiRepository @Inject constructor(
     suspend fun saveWifiSettings(
         currentWlanInfo: WlanInfo,
         wlanEnable: Boolean,
-        apIsolate: Boolean
+        apIsolate: Boolean,
+        bandwidthAcs: Boolean = true,
+        channel: String = currentWlanInfo.channel,
+        bandwidth: String = currentWlanInfo.bandwidth,
+        maxClients: String = currentWlanInfo.maxClients
     ): Result<ApiResult> = runCatching {
         val data = linkedMapOf<String, Any>(
             "wlan_enable" to if (wlanEnable) "1" else "0",
             "rf_band" to currentWlanInfo.rfBand,
             "net_mode" to currentWlanInfo.netMode,
-            "max_clients" to currentWlanInfo.maxClients,
+            "max_clients" to maxClients,
             "ap_isolate" to if (apIsolate) "1" else "0",
-            "bandwidth_acs" to currentWlanInfo.bandwidthAcsOrDefault()
+            "bandwidth_acs" to if (bandwidthAcs) "1" else "0"
         )
-        if (currentWlanInfo.bandwidthAcsOrDefault() == "1") {
-            api.setWlan(jsonBody(data))
-        } else {
-            data["channel"] = currentWlanInfo.channel
-            data["bandwidth"] = currentWlanInfo.bandwidth
-            api.setWlan(jsonBody(data))
+        if (!bandwidthAcs) {
+            data["channel"] = channel
+            data["bandwidth"] = bandwidth
         }
+        api.setWlan(jsonBody(data))
     }
 
     suspend fun saveWifiAutoOff(sleepMinutes: String): Result<ApiResult> =

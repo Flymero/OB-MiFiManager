@@ -18,7 +18,11 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -67,6 +71,10 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
     var ssidBroadcast by remember(state.securityInfo) { mutableStateOf(state.securityInfo.ssidBcast == "1") }
     var autoOffEnabled by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.wifiSleepTime != "0") }
     var autoOffMinutes by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.wifiSleepTime.takeUnless { it == "0" }.orEmpty()) }
+    var autoChannel by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.bandwidthAcsOrDefault() == "1") }
+    var selectedChannel by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.channel) }
+    var selectedBandwidth by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.bandwidth) }
+    var maxClients by remember(state.wlanInfo) { mutableStateOf(state.wlanInfo.maxClients) }
     var wpsPin by remember { mutableStateOf("") }
     var showSecurityModeSheet by remember { mutableStateOf(false) }
 
@@ -217,11 +225,49 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
 
             SectionCard {
                 CardTitle("高级设置")
-                KeyValueRow("信道", state.wlanInfo.channel)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = "自动信道",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (autoChannel) "路由器自动选择最佳信道" else "手动指定信道和带宽",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = autoChannel, onCheckedChange = { autoChannel = it })
+                }
+                if (!autoChannel) {
+                    SectionDivider()
+                    ChannelSelector(
+                        selectedChannel = selectedChannel,
+                        firstChannel = state.wlanInfo.firstChannel.toIntOrNull() ?: 1,
+                        lastChannel = state.wlanInfo.lastChannel.toIntOrNull() ?: 13,
+                        onChannelSelected = { selectedChannel = it }
+                    )
+                    SectionDivider()
+                    BandwidthSelector(
+                        selectedBandwidth = selectedBandwidth,
+                        onBandwidthSelected = { selectedBandwidth = it }
+                    )
+                }
                 SectionDivider()
-                KeyValueRow("带宽", if (state.wlanInfo.bandwidth == "2") "20/40 MHz" else "20 MHz")
-                SectionDivider()
-                KeyValueRow("最大客户端数", state.wlanInfo.maxClients)
+                OutlinedTextField(
+                    value = maxClients,
+                    onValueChange = { maxClients = it.filter(Char::isDigit).take(2) },
+                    label = { Text("最大连接数") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    supportingText = { Text("建议 1-32") },
+                    shape = MaterialTheme.shapes.large
+                )
                 SectionDivider()
                 KeyValueRow("Beacon 周期", "${state.wlanInfo.beaconPeriod} ms")
                 SectionDivider()
@@ -240,7 +286,16 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                     Switch(checked = apIsolate, onCheckedChange = { apIsolate = it })
                 }
                 Button(
-                    onClick = { viewModel.saveWlanSettings(wifiEnabled, apIsolate) },
+                    onClick = {
+                        viewModel.saveWlanSettings(
+                            wlanEnable = wifiEnabled,
+                            apIsolate = apIsolate,
+                            bandwidthAcs = autoChannel,
+                            channel = selectedChannel,
+                            bandwidth = selectedBandwidth,
+                            maxClients = maxClients
+                        )
+                    },
                     enabled = !state.isSaving,
                     modifier = Modifier.align(Alignment.End),
                     shape = CircleShape
@@ -466,4 +521,76 @@ private fun autoOffMinutesError(enabled: Boolean, minutes: String): String? {
     if (!enabled) return null
     val value = minutes.toIntOrNull() ?: return "请输入 10-60 分钟"
     return if (value in 10..60) null else "请输入 10-60 分钟"
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChannelSelector(
+    selectedChannel: String,
+    firstChannel: Int,
+    lastChannel: Int,
+    onChannelSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val channels = (firstChannel..lastChannel).map { it.toString() }
+
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = "信道 $selectedChannel",
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            shape = MaterialTheme.shapes.large
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            channels.forEach { ch ->
+                DropdownMenuItem(
+                    text = { Text("信道 $ch") },
+                    onClick = {
+                        onChannelSelected(ch)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BandwidthSelector(
+    selectedBandwidth: String,
+    onBandwidthSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val options = listOf("1" to "20 MHz", "2" to "20/40 MHz")
+    val currentLabel = options.firstOrNull { it.first == selectedBandwidth }?.second ?: "20 MHz"
+
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = currentLabel,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("带宽") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            shape = MaterialTheme.shapes.large
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (value, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        onBandwidthSelected(value)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
 }

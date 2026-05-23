@@ -63,13 +63,24 @@ class WifiViewModel @Inject constructor(
         }
     }
 
-    fun saveWlanSettings(wlanEnable: Boolean, apIsolate: Boolean) {
+    fun saveWlanSettings(
+        wlanEnable: Boolean,
+        apIsolate: Boolean,
+        bandwidthAcs: Boolean,
+        channel: String,
+        bandwidth: String,
+        maxClients: String
+    ) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isSaving = true)
             val result = repository.saveWifiSettings(
                 currentWlanInfo = _state.value.wlanInfo,
                 wlanEnable = wlanEnable,
-                apIsolate = apIsolate
+                apIsolate = apIsolate,
+                bandwidthAcs = bandwidthAcs,
+                channel = channel,
+                bandwidth = bandwidth,
+                maxClients = maxClients
             )
             _state.value = _state.value.copy(
                 isSaving = false,

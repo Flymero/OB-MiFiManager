@@ -38,10 +38,11 @@ An Android management app for LTE portable WiFi hotspots, replacing the default 
 - Device detail bottom sheet (connection duration, traffic activity, MAC, IP)
 - Block / unblock devices (current device protected from self-blocking)
 - Copy MAC address
+- First connection time and total connection duration on each card
 
 ### Device Management
 - Device info: model, firmware, IMEI, ICCID, serial number
-- SIM card management and switching (eSIM1 / eSIM2 / auto-select)
+- SIM card management and switching (eSIM1 / eSIM2 / auto-select) with current selection indicator
 - Network mode switching via bottom sheet (based on device capability)
 - DHCP settings viewer
 - MAC blacklist management (add / remove / enable / disable)
@@ -52,13 +53,17 @@ An Android management app for LTE portable WiFi hotspots, replacing the default 
 ### Data Plan Query
 - Query remaining data, expiry date, and balance
 - Recharge number is user-inputted, supports multiple users
+- Order history sheet with pagination (10 per page, load more)
+- Auto-redirect handling for plan API domain changes
 
 ### Internet Authentication
 - SMS verification for device internet access
+- Re-authentication confirmation dialog for already-authenticated devices
+- Auto-refresh of authentication status after successful verification
 
 ## Dark Mode
 
-Toggle dark mode from the device management page (top-right icon). The preference persists across app restarts.
+Toggle dark mode from the login page or device management page (top-right icon). The preference persists across app restarts.
 
 ## Login
 
@@ -79,21 +84,23 @@ Toggle dark mode from the device management page (top-right icon). The preferenc
 The project uses GitHub Actions for CI/CD. Push code or create a tag to trigger a build:
 
 ```bash
-# Create a release
-git tag v2.0.0
-git push origin v2.0.0
+# Create a release (auto-published to GitHub Releases)
+git tag v2.1.0
+git push origin v2.1.0
 ```
 
 Local build:
 
 ```bash
 ./gradlew assembleDebug    # Debug build
-./gradlew assembleRelease  # Release build
+./gradlew assembleRelease  # Unsigned release build (minified + shrunk)
 ```
 
 ## Download
 
 Go to the [Releases](https://github.com/Flymero/OB-MiFiManager/releases) page to download the latest APK.
+
+**Note**: Release APKs are unsigned. You need to sign the APK yourself before installation (using `apksigner`, MT Manager, or similar tools). Alternatively, build the debug variant locally for development use.
 
 ## Permissions
 

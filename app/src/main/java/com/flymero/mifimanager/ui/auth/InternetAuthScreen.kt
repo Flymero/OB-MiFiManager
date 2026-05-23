@@ -147,7 +147,7 @@ fun InternetAuthScreen(viewModel: InternetAuthViewModel = hiltViewModel()) {
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(state.terminals) { terminal ->
+                    items(state.terminals, key = { it.terminalMac }) { terminal ->
                         AuthTerminalCard(
                             terminal = terminal,
                             isVerifying = state.verifyingMac == terminal.terminalMac,

@@ -905,7 +905,7 @@ private fun OrderHistorySheet(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(visibleOrders) { order ->
+                items(visibleOrders, key = { it.orderNo }) { order ->
                     OrderItemCard(order)
                 }
                 if (displayCount < orders.size) {

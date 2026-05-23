@@ -188,33 +188,33 @@ fun DevicesScreen(
                 ) {
                     when (page) {
                         0 -> {
-                            items(onlineDevices) { device ->
+                            items(onlineDevices, key = { it.mac }) { device ->
                                 ClientDeviceItem(device, "在线", Success, false, currentDeviceMac, context, viewModel) {
                                     selectedDevice = device
                                 }
                             }
-                            items(blockedDevices) { device ->
+                            items(blockedDevices, key = { it.mac }) { device ->
                                 ClientDeviceItem(device, "已屏蔽", ErrorLight, true, currentDeviceMac, context, viewModel) {
                                     selectedDevice = device
                                 }
                             }
-                            items(offlineDevices) { device ->
+                            items(offlineDevices, key = { it.mac }) { device ->
                                 ClientDeviceItem(device, "离线", MaterialTheme.colorScheme.onSurfaceVariant, false, currentDeviceMac, context, viewModel) {
                                     selectedDevice = device
                                 }
                             }
                         }
-                        1 -> items(onlineDevices) { device ->
+                        1 -> items(onlineDevices, key = { it.mac }) { device ->
                             ClientDeviceItem(device, "在线", Success, false, currentDeviceMac, context, viewModel) {
                                 selectedDevice = device
                             }
                         }
-                        2 -> items(blockedDevices) { device ->
+                        2 -> items(blockedDevices, key = { it.mac }) { device ->
                             ClientDeviceItem(device, "已屏蔽", ErrorLight, true, currentDeviceMac, context, viewModel) {
                                 selectedDevice = device
                             }
                         }
-                        3 -> items(offlineDevices) { device ->
+                        3 -> items(offlineDevices, key = { it.mac }) { device ->
                             ClientDeviceItem(device, "离线", MaterialTheme.colorScheme.onSurfaceVariant, false, currentDeviceMac, context, viewModel) {
                                 selectedDevice = device
                             }
@@ -240,7 +240,7 @@ fun DevicesScreen(
                                 )
                             }
                         }
-                        items(historyDevices) { device ->
+                        items(historyDevices, key = { it.mac }) { device ->
                             HistoryDeviceItem(device)
                         }
                     }

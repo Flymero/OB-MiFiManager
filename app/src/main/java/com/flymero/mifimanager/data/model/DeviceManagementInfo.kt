@@ -35,6 +35,8 @@ data class ClientDevice(
     @SerializedName("s") val status: String = "",
     @SerializedName("ct") val connType: String = "",
     @SerializedName("ip") val ip: String = "",
+    @SerializedName("nt") val networkType: String = "",
+    @SerializedName("rssi") val rssi: String = "0",
     @SerializedName("ta") val timeAdded: String = "",
     @SerializedName("tf") val totalConnectionSeconds: String = "0",
     @SerializedName("rx") val rx: String = "0",

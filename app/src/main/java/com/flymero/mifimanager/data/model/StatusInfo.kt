@@ -7,6 +7,7 @@ data class StatusInfo(
     @SerializedName("run_seconds") val runSeconds: String = "0",
     @SerializedName("battery_connect") val batteryConnect: String = "0",
     @SerializedName("battery_charging") val batteryCharging: String = "0",
+    @SerializedName("battery_charge") val batteryCharge: String = "0",
     @SerializedName("battery_percent") val batteryPercent: String = "0",
     @SerializedName("tx_byte_all") val txByteAll: String = "0",
     @SerializedName("rx_byte_all") val rxByteAll: String = "0",
@@ -19,7 +20,9 @@ data class StatusInfo(
     @SerializedName("rx_speed") val rxSpeed: String = "0",
     @SerializedName("tx_max_speed") val txMaxSpeed: String = "0",
     @SerializedName("rx_max_speed") val rxMaxSpeed: String = "0",
-    @SerializedName("login_status") val loginStatus: String = "0"
+    @SerializedName("login_status") val loginStatus: String = "0",
+    @SerializedName("pc_valid") val pcValid: String = "0",
+    @SerializedName("password_status") val passwordStatus: String = "0"
 ) {
     fun networkType(): String = when (sysMode) {
         "1" -> "GSM"

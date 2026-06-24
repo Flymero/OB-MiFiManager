@@ -367,6 +367,87 @@ class MiFiRepository @Inject constructor(
         api.setWan(jsonBody(data))
     }
 
+    suspend fun saveApnProfile(
+        currentInfo: ApnProfileInfo,
+        profileName: String,
+        apn: String,
+        ipType: String,
+        authType: String,
+        username: String,
+        password: String
+    ): Result<ApiResult> = runCatching {
+        val existing = currentInfo.profileList.firstOrNull { it.profileName == profileName }
+        val profile = apnProfilePayload(
+            profileName = profileName,
+            apn = apn,
+            ipType = ipType,
+            authType = authType,
+            username = username,
+            password = password,
+            enabled = existing?.isEnabled() == true,
+            isDefault = existing?.isDefault() == true
+        )
+        api.setWan(jsonBody(linkedMapOf("profile_list" to listOf(profile))))
+    }
+
+    suspend fun setDefaultApn(currentInfo: ApnProfileInfo, profileName: String): Result<ApiResult> = runCatching {
+        val selected = currentInfo.profileList.firstOrNull { it.profileName == profileName }
+            ?: return@runCatching ApiResult()
+        val current = currentInfo.profileList.firstOrNull { it.isEnabled() }
+        val profiles = mutableListOf<Map<String, Any>>()
+        profiles += apnProfilePayload(
+            profileName = selected.profileName,
+            apn = selected.apn,
+            ipType = selected.ipType,
+            authType = selected.authType(),
+            username = selected.username(),
+            password = selected.password(),
+            enabled = true,
+            isDefault = selected.isDefault()
+        )
+        if (current != null && current.profileName != selected.profileName) {
+            profiles += apnProfilePayload(
+                profileName = current.profileName,
+                apn = current.apn,
+                ipType = current.ipType,
+                authType = current.authType(),
+                username = current.username(),
+                password = current.password(),
+                enabled = false,
+                isDefault = current.isDefault()
+            )
+        }
+        api.setWan(jsonBody(linkedMapOf("profile_list" to profiles)))
+    }
+
+    suspend fun deleteApnProfile(profileName: String): Result<ApiResult> =
+        setWan(linkedMapOf("profile_list" to listOf(linkedMapOf("profile_name" to profileName, "delete" to "1"))))
+
+    private fun apnProfilePayload(
+        profileName: String,
+        apn: String,
+        ipType: String,
+        authType: String,
+        username: String,
+        password: String,
+        enabled: Boolean,
+        isDefault: Boolean
+    ): Map<String, Any> = linkedMapOf(
+        "profile_name" to profileName,
+        "enable" to if (enabled) "1" else "0",
+        "default" to if (isDefault) "1" else "0",
+        "apn" to apn,
+        "lte_apn" to apn,
+        "iptype" to ipType,
+        "qci" to "0",
+        "authtype2g3" to authType,
+        "usr2g3" to username,
+        "paswd2g3" to password,
+        "authtype4g" to authType,
+        "usr4g" to username,
+        "paswd4g" to password
+    )
+
     private fun encodeValue(value: String): String = java.net.URLEncoder.encode(value, Charsets.UTF_8.name())
 
     private fun normalizeMacAddress(value: String): String =

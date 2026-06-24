@@ -32,7 +32,13 @@ data class DeviceState(
     val isPlanLoading: Boolean = false,
     val actionResult: String? = null,
     val isLoggedOut: Boolean = false,
-    val isMacFilterSyncing: Boolean = false
+    val isMacFilterSyncing: Boolean = false,
+    val isRefreshing: Boolean = false,
+    val routerReachable: Boolean = true,
+    val hasLoadedRouter: Boolean = false,
+    val operationInProgress: Boolean = false,
+    val operationMessage: String? = null,
+    val operationAffectsConnection: Boolean = false
 )
 
 @HiltViewModel
@@ -51,6 +57,7 @@ class DeviceViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
+            _state.value = _state.value.copy(isRefreshing = true)
             val homepage = async { repository.getHomepageInfo() }
             val wan = async { repository.getWanInfo() }
             val dhcp = async { repository.getDhcpInfo() }
@@ -59,16 +66,36 @@ class DeviceViewModel @Inject constructor(
             val firmware = async { repository.getFirmwareInfo() }
             val macFilters = async { repository.getWlanMacFiltersInfo() }
 
+            val homepageResult = homepage.await()
+            val wanResult = wan.await()
+            val dhcpResult = dhcp.await()
+            val apnResult = apn.await()
+            val simResult = sim.await()
+            val firmwareResult = firmware.await()
+            val macFiltersResult = macFilters.await()
+            val routerReachable = listOf<Result<*>>(
+                homepageResult,
+                wanResult,
+                dhcpResult,
+                apnResult,
+                simResult,
+                firmwareResult,
+                macFiltersResult
+            ).any { it.isSuccess }
+
             _state.value = _state.value.copy(
-                homepageInfo = homepage.await().getOrDefault(HomepageInfo()),
-                wanInfo = wan.await().getOrDefault(WanInfo()),
-                dhcpInfo = dhcp.await().getOrDefault(DhcpInfo()),
-                apnInfo = apn.await().getOrDefault(ApnProfileInfo()),
-                simInfo = sim.await().getOrDefault(SimInfo()),
-                firmwareInfo = firmware.await().getOrDefault(FirmwareInfo()),
-                macFiltersInfo = macFilters.await().getOrDefault(_state.value.macFiltersInfo),
+                homepageInfo = homepageResult.getOrDefault(_state.value.homepageInfo),
+                wanInfo = wanResult.getOrDefault(_state.value.wanInfo),
+                dhcpInfo = dhcpResult.getOrDefault(_state.value.dhcpInfo),
+                apnInfo = apnResult.getOrDefault(_state.value.apnInfo),
+                simInfo = simResult.getOrDefault(_state.value.simInfo),
+                firmwareInfo = firmwareResult.getOrDefault(_state.value.firmwareInfo),
+                macFiltersInfo = macFiltersResult.getOrDefault(_state.value.macFiltersInfo),
                 isLoading = false,
-                isPlanLoading = true
+                isPlanLoading = true,
+                isRefreshing = false,
+                routerReachable = routerReachable,
+                hasLoadedRouter = _state.value.hasLoadedRouter || routerReachable
             )
 
             val plan = repository.getPlanInfo()
@@ -86,16 +113,23 @@ class DeviceViewModel @Inject constructor(
 
     fun setNetworkMode(mode: String) {
         viewModelScope.launch {
+            beginOperation("正在切换网络模式…", affectsConnection = true)
             val result = repository.setNetworkMode(_state.value.wanInfo, mode)
+            val success = result.getOrNull()?.isSuccess == true
             _state.value = _state.value.copy(
-                actionResult = if (result.getOrNull()?.isSuccess == true) "网络模式已切换" else "切换失败"
+                actionResult = if (success) "网络模式已切换，正在刷新状态" else "切换失败",
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
             )
+            if (success) delay(3000)
             refresh()
         }
     }
 
     fun switchSim(simId: String) {
         viewModelScope.launch {
+            beginOperation("正在切换 SIM…", affectsConnection = true)
             val result = if (simId == "4") {
                 repository.setSimConfig("0")
             } else {
@@ -103,42 +137,68 @@ class DeviceViewModel @Inject constructor(
             }
             val success = result.getOrNull()?.isSuccess == true
             _state.value = _state.value.copy(
-                actionResult = if (success) "SIM卡已切换" else "切换失败"
+                actionResult = if (success) "SIM卡已切换，正在刷新状态" else "切换失败",
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
             )
+            if (success) delay(5000)
             refresh()
         }
     }
 
     fun restartDevice() {
         viewModelScope.launch {
+            beginOperation("设备正在重启…", affectsConnection = true)
             val result = repository.restartDevice()
             if (result.getOrNull() == true) {
                 globalMessageBus.post("设备正在重启…")
+                _state.value = _state.value.copy(
+                    operationInProgress = false,
+                    operationMessage = "设备正在重启，网络会短暂断开。",
+                    operationAffectsConnection = true
+                )
             } else {
-                _state.value = _state.value.copy(actionResult = "重启失败")
+                _state.value = _state.value.copy(
+                    actionResult = "重启失败",
+                    operationInProgress = false,
+                    operationMessage = null,
+                    operationAffectsConnection = false
+                )
             }
         }
     }
 
     fun restoreFactory() {
         viewModelScope.launch {
+            beginOperation("正在恢复出厂设置…", affectsConnection = true)
             repository.restoreFactory()
-            _state.value = _state.value.copy(actionResult = "正在恢复出厂设置...")
+            _state.value = _state.value.copy(
+                actionResult = "正在恢复出厂设置...",
+                operationInProgress = false,
+                operationMessage = "恢复出厂设置后需要重新连接设备。",
+                operationAffectsConnection = true
+            )
         }
     }
 
     fun changePassword(newPassword: String) {
         viewModelScope.launch {
+            beginOperation("正在修改管理密码…")
             val username = dataStore.getSavedUsername().ifBlank { "admin" }
             val result = repository.changePassword(username, newPassword)
             _state.value = _state.value.copy(
-                actionResult = if (result.getOrNull()?.isSuccess == true) "密码修改成功" else "密码修改失败"
+                actionResult = if (result.getOrNull()?.isSuccess == true) "密码修改成功" else "密码修改失败",
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
             )
         }
     }
 
     fun saveDns(enable: Boolean, dns1: String, dns2: String) {
         viewModelScope.launch {
+            beginOperation("正在保存 DNS 设置…")
             val data = linkedMapOf<String, Any>(
                 "dns_enable" to if (enable) "1" else "0",
                 "dns1" to dns1,
@@ -146,7 +206,10 @@ class DeviceViewModel @Inject constructor(
             )
             val result = repository.setLan(data)
             _state.value = _state.value.copy(
-                actionResult = if (result.getOrNull()?.isSuccess == true) "DNS 设置已保存" else "DNS 设置失败"
+                actionResult = if (result.getOrNull()?.isSuccess == true) "DNS 设置已保存" else "DNS 设置失败",
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
             )
             refresh()
         }
@@ -154,12 +217,16 @@ class DeviceViewModel @Inject constructor(
 
     fun addStaticIp(mac: String, ip: String) {
         viewModelScope.launch {
+            beginOperation("正在添加静态 IP…")
             val data = linkedMapOf<String, Any>(
                 "Fixed_IP_list" to listOf(mapOf("index" to 1, "mac" to mac, "ip" to ip))
             )
             val result = repository.setLan(data)
             _state.value = _state.value.copy(
-                actionResult = if (result.getOrNull()?.isSuccess == true) "静态 IP 已添加" else "添加失败"
+                actionResult = if (result.getOrNull()?.isSuccess == true) "静态 IP 已添加" else "添加失败",
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
             )
             refresh()
         }
@@ -167,12 +234,16 @@ class DeviceViewModel @Inject constructor(
 
     fun deleteStaticIp(mac: String) {
         viewModelScope.launch {
+            beginOperation("正在删除静态 IP…")
             val data = linkedMapOf<String, Any>(
                 "Fixed_IP_list" to listOf(mapOf("delete" to 1, "mac" to mac))
             )
             val result = repository.setLan(data)
             _state.value = _state.value.copy(
-                actionResult = if (result.getOrNull()?.isSuccess == true) "静态 IP 已删除" else "删除失败"
+                actionResult = if (result.getOrNull()?.isSuccess == true) "静态 IP 已删除" else "删除失败",
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
             )
             refresh()
         }
@@ -180,6 +251,7 @@ class DeviceViewModel @Inject constructor(
 
     fun setMacBlacklistEnabled(enabled: Boolean) {
         viewModelScope.launch {
+            beginOperation(if (enabled) "正在开启 MAC 黑名单…" else "正在关闭 MAC 黑名单…", affectsConnection = true)
             val previous = _state.value.macFiltersInfo
             _state.value = _state.value.copy(
                 macFiltersInfo = previous.copy(enable = if (enabled) "1" else "0")
@@ -198,7 +270,12 @@ class DeviceViewModel @Inject constructor(
                     "MAC 黑名单设置失败"
                 }
             }
-            _state.value = _state.value.copy(actionResult = actionResult)
+            _state.value = _state.value.copy(
+                actionResult = actionResult,
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
+            )
             refresh()
         }
     }
@@ -210,6 +287,7 @@ class DeviceViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
+            beginOperation("正在添加 MAC 黑名单…", affectsConnection = true)
             val previous = _state.value.macFiltersInfo
             if (previous.blacklistEntries().none { it.mac.equals(normalizedMac, ignoreCase = true) }) {
                 _state.value = _state.value.copy(
@@ -232,13 +310,19 @@ class DeviceViewModel @Inject constructor(
                     "添加失败"
                 }
             }
-            _state.value = _state.value.copy(actionResult = actionResult)
+            _state.value = _state.value.copy(
+                actionResult = actionResult,
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
+            )
             refresh()
         }
     }
 
     fun removeMacFromBlacklist(index: Int) {
         viewModelScope.launch {
+            beginOperation("正在移除 MAC 黑名单…", affectsConnection = true)
             val previous = _state.value.macFiltersInfo
             val updatedEntries = previous.blacklistEntries().filterIndexed { entryIndex, _ -> entryIndex != index }
             _state.value = _state.value.copy(
@@ -258,7 +342,70 @@ class DeviceViewModel @Inject constructor(
                     "删除失败"
                 }
             }
-            _state.value = _state.value.copy(actionResult = actionResult)
+            _state.value = _state.value.copy(
+                actionResult = actionResult,
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
+            )
+            refresh()
+        }
+    }
+
+    fun saveApnProfile(
+        profileName: String,
+        apn: String,
+        ipType: String,
+        authType: String,
+        username: String,
+        password: String
+    ) {
+        viewModelScope.launch {
+            beginOperation("正在保存 APN…", affectsConnection = true)
+            val result = repository.saveApnProfile(
+                currentInfo = _state.value.apnInfo,
+                profileName = profileName,
+                apn = apn,
+                ipType = ipType,
+                authType = authType,
+                username = username,
+                password = password
+            )
+            _state.value = _state.value.copy(
+                actionResult = if (result.getOrNull()?.isSuccess == true) "APN 已保存" else "APN 保存失败",
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
+            )
+            refresh()
+        }
+    }
+
+    fun setDefaultApn(profileName: String) {
+        viewModelScope.launch {
+            beginOperation("正在切换默认 APN…", affectsConnection = true)
+            val result = repository.setDefaultApn(_state.value.apnInfo, profileName)
+            _state.value = _state.value.copy(
+                actionResult = if (result.getOrNull()?.isSuccess == true) "默认 APN 已切换" else "切换失败",
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
+            )
+            if (result.getOrNull()?.isSuccess == true) delay(2500)
+            refresh()
+        }
+    }
+
+    fun deleteApnProfile(profileName: String) {
+        viewModelScope.launch {
+            beginOperation("正在删除 APN…")
+            val result = repository.deleteApnProfile(profileName)
+            _state.value = _state.value.copy(
+                actionResult = if (result.getOrNull()?.isSuccess == true) "APN 已删除" else "删除失败",
+                operationInProgress = false,
+                operationMessage = null,
+                operationAffectsConnection = false
+            )
             refresh()
         }
     }
@@ -275,6 +422,14 @@ class DeviceViewModel @Inject constructor(
 
     fun clearResult() {
         _state.value = _state.value.copy(actionResult = null)
+    }
+
+    private fun beginOperation(message: String, affectsConnection: Boolean = false) {
+        _state.value = _state.value.copy(
+            operationInProgress = true,
+            operationMessage = message,
+            operationAffectsConnection = affectsConnection
+        )
     }
 
     private fun scheduleMacFilterReconnectRefresh() {

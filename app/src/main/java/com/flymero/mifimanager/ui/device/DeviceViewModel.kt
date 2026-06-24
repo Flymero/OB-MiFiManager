@@ -101,8 +101,9 @@ class DeviceViewModel @Inject constructor(
             } else {
                 repository.setSimConfig("1", simId)
             }
+            val success = result.getOrNull()?.isSuccess == true
             _state.value = _state.value.copy(
-                actionResult = if (result.isSuccess) "SIM卡已切换" else "切换失败"
+                actionResult = if (success) "SIM卡已切换" else "切换失败"
             )
             refresh()
         }

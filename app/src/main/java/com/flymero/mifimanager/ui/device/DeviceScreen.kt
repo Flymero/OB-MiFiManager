@@ -475,7 +475,7 @@ private fun SimManagementCard(
 
         simInfo.simList.forEachIndexed { index, sim ->
             val planSim = planEquipment?.cardList?.find { it.iccid == sim.simIccid }
-            val isCurrent = isCurrentSim(simInfo, sim, planEquipment)
+            val isCurrent = isCurrentSim(simInfo, sim)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -516,7 +516,7 @@ private fun SimManagementCard(
                     )
                     isCurrent -> Icon(
                         Icons.Default.Check,
-                        contentDescription = "当前使用",
+                        contentDescription = "当前选择",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp)
                     )
@@ -955,11 +955,9 @@ private fun isValidMacAddress(value: String): Boolean =
 
 private fun isCurrentSim(
     simInfo: SimInfo,
-    sim: SimCard,
-    planEquipment: PlanEquipment?
+    sim: SimCard
 ): Boolean {
-    val planSim = planEquipment?.cardList?.find { it.iccid == sim.simIccid }
-    return simInfo.switchMode == "1" && sim.simId == simInfo.soleSimId || planSim?.isInUse() == true
+    return simInfo.switchMode == "1" && sim.simId == simInfo.soleSimId
 }
 
 private fun copyToClipboard(context: Context, label: String, value: String) {

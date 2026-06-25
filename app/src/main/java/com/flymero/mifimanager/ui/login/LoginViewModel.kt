@@ -35,13 +35,16 @@ class LoginViewModel @Inject constructor(
     }
 
     private fun loadSavedCredentials() {
+        val savedRechargeNo = dataStore.getSavedRechargeNo()
         if (dataStore.hasSavedCredentials()) {
             _state.value = _state.value.copy(
                 savedUsername = dataStore.getSavedUsername(),
                 savedPassword = dataStore.getSavedPassword(),
-                savedRechargeNo = dataStore.getSavedRechargeNo(),
+                savedRechargeNo = savedRechargeNo,
                 shouldRemember = true
             )
+        } else if (savedRechargeNo.isNotEmpty()) {
+            _state.value = _state.value.copy(savedRechargeNo = savedRechargeNo)
         }
     }
 
@@ -50,10 +53,11 @@ class LoginViewModel @Inject constructor(
             _state.value = _state.value.copy(isLoading = true, error = null)
             val success = repository.login(username, password)
             if (success) {
+                dataStore.saveRechargeNo(rechargeNo)
                 if (remember) {
                     dataStore.saveCredentials(username, password, rechargeNo)
                 } else {
-                    dataStore.clearCredentials()
+                    dataStore.clearLoginCredentials()
                 }
                 _state.value = _state.value.copy(isLoading = false, isSuccess = true)
             } else {

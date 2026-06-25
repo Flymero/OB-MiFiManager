@@ -61,12 +61,14 @@ fun LoginScreen(
     val passwordFocus = remember { FocusRequester() }
     val rechargeNoFocus = remember { FocusRequester() }
 
-    LaunchedEffect(state.savedUsername) {
+    LaunchedEffect(state.savedUsername, state.savedRechargeNo) {
         if (state.savedUsername.isNotEmpty()) {
             username = state.savedUsername
             password = state.savedPassword
-            rechargeNo = state.savedRechargeNo
             rememberMe = state.shouldRemember
+        }
+        if (state.savedRechargeNo.isNotEmpty()) {
+            rechargeNo = state.savedRechargeNo
         }
     }
 

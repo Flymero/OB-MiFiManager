@@ -17,8 +17,22 @@ class DataStoreHelper @Inject constructor(
         prefs.edit()
             .putString("username", username)
             .putString("password", password)
-            .putString("recharge_no", rechargeNo)
+            .putString("recharge_no", rechargeNo.trim())
             .putBoolean("remember", true)
+            .apply()
+    }
+
+    fun saveRechargeNo(rechargeNo: String) {
+        prefs.edit()
+            .putString("recharge_no", rechargeNo.trim())
+            .apply()
+    }
+
+    fun clearLoginCredentials() {
+        prefs.edit()
+            .remove("username")
+            .remove("password")
+            .putBoolean("remember", false)
             .apply()
     }
 

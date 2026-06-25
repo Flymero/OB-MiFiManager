@@ -136,12 +136,14 @@ class DeviceViewModel @Inject constructor(
                 repository.setSimConfig("1", simId)
             }
             val success = result.getOrNull()?.isSuccess == true
+            val message = if (success) "SIM卡已切换，正在刷新状态" else "SIM卡切换失败"
             _state.value = _state.value.copy(
-                actionResult = if (success) "SIM卡已切换，正在刷新状态" else "切换失败",
+                actionResult = null,
                 operationInProgress = false,
                 operationMessage = null,
                 operationAffectsConnection = false
             )
+            globalMessageBus.post(message)
             if (success) delay(5000)
             refresh()
         }
@@ -414,7 +416,7 @@ class DeviceViewModel @Inject constructor(
         viewModelScope.launch {
             repository.logout()
             if (!dataStore.shouldRemember()) {
-                dataStore.clearCredentials()
+                dataStore.clearLoginCredentials()
             }
             _state.value = _state.value.copy(isLoggedOut = true)
         }

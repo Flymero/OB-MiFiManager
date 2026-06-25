@@ -23,15 +23,19 @@ data class PlanInfo(
     @SerializedName("equipment") val equipment: PlanEquipment? = null,
     @SerializedName("coupon") val coupon: Int = 0
 ) {
-    fun usedAmount(): Double = totalAmount - remainAmount
+    fun usedAmount(): Double = (totalAmount - remainAmount).coerceAtLeast(0.0)
+    fun remainAmountSafe(): Double = remainAmount.coerceAtLeast(0.0)
+    fun totalAmountSafe(): Double = totalAmount.coerceAtLeast(0.0)
 
     fun usedFormatted(): String = formatMB(usedAmount())
-    fun remainFormatted(): String = formatMB(remainAmount)
-    fun totalFormatted(): String = formatMB(totalAmount)
+    fun remainFormatted(): String = formatMB(remainAmountSafe())
+    fun totalFormatted(): String = formatMB(totalAmountSafe())
 
     fun usagePercent(): Float {
         if (totalAmount <= 0) return 0f
-        return (usedAmount() / totalAmount * 100).toFloat()
+        return (usedAmount() / totalAmount * 100)
+            .coerceIn(0.0, 100.0)
+            .toFloat()
     }
 
     private fun formatMB(mb: Double): String = when {

@@ -106,6 +106,10 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     var showPlanDetail by rememberSaveable { mutableStateOf(false) }
     var showPlanHint by rememberSaveable { mutableStateOf(plan != null) }
 
+    LaunchedEffect(plan != null, plan?.equipment?.devNo, plan?.packageName) {
+        if (plan != null) showPlanHint = true
+    }
+
     LaunchedEffect(state.refreshMessage) {
         state.refreshMessage?.let {
             snackbarHostState.showSnackbar(it)

@@ -50,7 +50,7 @@ class DevicesViewModel @Inject constructor(
         viewModelScope.launch {
             val result = repository.blockDevice(mac)
             _state.value = _state.value.copy(
-                actionResult = if (result.isSuccess) "设备已屏蔽" else "屏蔽失败"
+                actionResult = if (result.getOrNull()?.isSuccess == true) "设备已屏蔽" else "屏蔽失败"
             )
             refresh()
         }
@@ -60,7 +60,7 @@ class DevicesViewModel @Inject constructor(
         viewModelScope.launch {
             val result = repository.unblockDevice(mac)
             _state.value = _state.value.copy(
-                actionResult = if (result.isSuccess) "已解除屏蔽" else "解除失败"
+                actionResult = if (result.getOrNull()?.isSuccess == true) "已解除屏蔽" else "解除失败"
             )
             refresh()
         }

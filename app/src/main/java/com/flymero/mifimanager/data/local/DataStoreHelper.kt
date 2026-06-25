@@ -47,13 +47,13 @@ class DataStoreHelper @Inject constructor(
 
     fun getSavedUsername(): String = prefs.getString("username", "") ?: ""
     fun getSavedPassword(): String = prefs.getString("password", "") ?: ""
-    fun getSavedRechargeNo(): String = prefs.getString("recharge_no", "") ?: ""
+    fun getSavedRechargeNo(): String = (prefs.getString("recharge_no", "") ?: "").trim()
     fun shouldRemember(): Boolean = prefs.getBoolean("remember", false)
 
     fun hasSavedCredentials(): Boolean =
         shouldRemember() && getSavedUsername().isNotEmpty() && getSavedPassword().isNotEmpty()
 
-    fun getRechargeNo(): String = prefs.getString("recharge_no", "") ?: ""
+    fun getRechargeNo(): String = getSavedRechargeNo()
 
     fun isDarkMode(): Boolean = prefs.getBoolean("dark_mode", false)
 

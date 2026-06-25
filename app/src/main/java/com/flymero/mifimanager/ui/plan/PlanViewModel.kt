@@ -37,7 +37,9 @@ class PlanViewModel @Inject constructor(
             } else {
                 _state.value = PlanState(
                     isLoading = false,
-                    error = result.getOrNull()?.msg ?: "查询失败"
+                    error = result.getOrNull()?.msg?.ifBlank { null }
+                        ?: result.exceptionOrNull()?.message
+                        ?: "查询失败"
                 )
             }
         }

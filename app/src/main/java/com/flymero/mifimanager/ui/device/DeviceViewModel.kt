@@ -174,13 +174,22 @@ class DeviceViewModel @Inject constructor(
     fun restoreFactory() {
         viewModelScope.launch {
             beginOperation("正在恢复出厂设置…", affectsConnection = true)
-            repository.restoreFactory()
-            _state.value = _state.value.copy(
-                actionResult = "正在恢复出厂设置...",
-                operationInProgress = false,
-                operationMessage = "恢复出厂设置后需要重新连接设备。",
-                operationAffectsConnection = true
-            )
+            val result = repository.restoreFactory()
+            if (result.getOrNull() == true) {
+                globalMessageBus.post("正在恢复出厂设置...")
+                _state.value = _state.value.copy(
+                    operationInProgress = false,
+                    operationMessage = "恢复出厂设置后需要重新连接设备。",
+                    operationAffectsConnection = true
+                )
+            } else {
+                _state.value = _state.value.copy(
+                    actionResult = "恢复出厂设置失败",
+                    operationInProgress = false,
+                    operationMessage = null,
+                    operationAffectsConnection = false
+                )
+            }
         }
     }
 

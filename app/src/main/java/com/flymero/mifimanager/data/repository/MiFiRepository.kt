@@ -118,8 +118,11 @@ class MiFiRepository @Inject constructor(
     suspend fun getSimInfo(): Result<SimInfo> = runCatching { api.getSimInfo() }
     suspend fun getSmsAuthTerminalList(): Result<SmsAuthTerminalList> = runCatching { api.getSmsAuthTerminalList() }
     suspend fun logout(): Result<Unit> = runCatching {
-        api.logout()
-        digestAuthInterceptor.clearCredentials()
+        try {
+            api.logout()
+        } finally {
+            digestAuthInterceptor.clearCredentials()
+        }
     }
 
     private fun jsonBody(data: Any): okhttp3.RequestBody {
@@ -228,7 +231,7 @@ class MiFiRepository @Inject constructor(
         val normalizedMac = normalizeMacAddress(mac)
         val entries = currentInfo.blacklistEntries().map { it.mac.uppercase() }.toMutableList()
         if (entries.any { it.equals(normalizedMac, ignoreCase = true) }) {
-            return Result.success(ApiResult())
+            return Result.success(ApiResult(result = "success"))
         }
         entries += normalizedMac
         return setWlanMacFilters(

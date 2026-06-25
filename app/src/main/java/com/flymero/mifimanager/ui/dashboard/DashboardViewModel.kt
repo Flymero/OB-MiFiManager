@@ -36,6 +36,11 @@ data class DashboardState(
     val orderError: String? = null
 )
 
+private data class PlanRefreshResult(
+    val success: Boolean,
+    val message: String? = null
+)
+
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val repository: MiFiRepository
@@ -125,10 +130,17 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private suspend fun refreshPlan() {
+    private suspend fun refreshPlan(): PlanRefreshResult {
         val result = repository.getPlanInfo()
-        if (result.isSuccess && result.getOrNull()?.isSuccess == true) {
-            _state.value = _state.value.copy(planInfo = result.getOrNull()?.data)
+        val response = result.getOrNull()
+        return if (result.isSuccess && response?.isSuccess == true) {
+            _state.value = _state.value.copy(planInfo = response.data)
+            PlanRefreshResult(success = true)
+        } else {
+            PlanRefreshResult(
+                success = false,
+                message = response?.msg?.ifBlank { null } ?: result.exceptionOrNull()?.message ?: "套餐信息刷新失败"
+            )
         }
     }
 
@@ -145,10 +157,10 @@ class DashboardViewModel @Inject constructor(
             _state.value = _state.value.copy(isPlanRefreshing = true)
             runCatching {
                 refreshPlan()
-            }.onSuccess {
+            }.onSuccess { result ->
                 _state.value = _state.value.copy(
                     isPlanRefreshing = false,
-                    refreshMessage = "套餐信息已刷新"
+                    refreshMessage = if (result.success) "套餐信息已刷新" else result.message
                 )
             }.onFailure {
                 _state.value = _state.value.copy(
@@ -176,10 +188,20 @@ class DashboardViewModel @Inject constructor(
     fun toggleCellular(connect: Boolean) {
         viewModelScope.launch {
             _state.value = _state.value.copy(cellularConnecting = true)
-            repository.toggleCellular(connect)
-            delay(if (connect) 8000 else 2000)
+            val result = repository.toggleCellular(connect)
+            val success = result.getOrNull()?.isSuccess == true
+            if (success) {
+                delay(if (connect) 8000 else 2000)
+            }
             refreshHomepage()
-            _state.value = _state.value.copy(cellularConnecting = false)
+            _state.value = _state.value.copy(
+                cellularConnecting = false,
+                refreshMessage = if (success) {
+                    if (connect) "蜂窝网络已连接" else "蜂窝网络已断开"
+                } else {
+                    "蜂窝网络切换失败"
+                }
+            )
         }
     }
 
@@ -199,7 +221,9 @@ class DashboardViewModel @Inject constructor(
             } else {
                 _state.value = _state.value.copy(
                     isOrderLoading = false,
-                    orderError = "获取订单失败"
+                    orderError = result.getOrNull()?.msg?.ifBlank { null }
+                        ?: result.exceptionOrNull()?.message
+                        ?: "获取订单失败"
                 )
             }
         }

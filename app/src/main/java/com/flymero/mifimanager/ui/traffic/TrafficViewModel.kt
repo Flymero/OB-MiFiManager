@@ -53,7 +53,7 @@ class TrafficViewModel @Inject constructor(
         viewModelScope.launch {
             val result = repository.clearTrafficStats()
             _state.value = _state.value.copy(
-                actionResult = if (result.isSuccess) "流量统计已清零" else "操作失败"
+                actionResult = if (result.getOrNull()?.isSuccess == true) "流量统计已清零" else "操作失败"
             )
             refresh()
         }

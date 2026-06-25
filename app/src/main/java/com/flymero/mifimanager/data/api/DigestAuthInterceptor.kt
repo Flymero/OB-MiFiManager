@@ -33,9 +33,9 @@ class DigestAuthInterceptor(
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
 
+        if (!isRouterRequest(request.url.host)) return chain.proceed(request)
         if (username.isEmpty()) return chain.proceed(request)
 
-        // For all requests, send Authorization header on first attempt if we have a nonce
         if (nonce.isNotEmpty()) {
             val authHeader = buildAuthHeader(request.method, request.url.encodedPath +
                 if (request.url.encodedQuery != null) "?${request.url.encodedQuery}" else "")
@@ -51,15 +51,15 @@ class DigestAuthInterceptor(
         val initialResponse = chain.proceed(request)
         if (initialResponse.code != 401) return initialResponse
 
-        val authHeaderStr = initialResponse.header("WWW-Authenticate") ?: return initialResponse
-        initialResponse.close()
-
-        if (!authHeaderStr.startsWith("Digest")) return initialResponse
+        val authHeaderStr = initialResponse.header("WWW-Authenticate")
+        if (authHeaderStr == null || !authHeaderStr.startsWith("Digest")) return initialResponse
 
         val params = parseDigestHeader(authHeaderStr)
         realm = params["realm"] ?: realm
-        nonce = params["nonce"] ?: return initialResponse
+        val challengedNonce = params["nonce"] ?: return initialResponse
         qop = params["qop"] ?: "auth"
+        nonce = challengedNonce
+        initialResponse.close()
 
         val method = request.method
         val uri = request.url.encodedPath +
@@ -72,6 +72,9 @@ class DigestAuthInterceptor(
 
         return chain.proceed(authenticatedRequest)
     }
+
+    private fun isRouterRequest(host: String): Boolean =
+        host == "192.168.1.1"
 
     private fun buildAuthHeader(method: String, uri: String): String {
         val nc = "00000001"

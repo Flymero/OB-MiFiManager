@@ -467,57 +467,152 @@ class MiFiRepository @Inject constructor(
 
     private fun currentSecurityKeyType(info: WlanSecurityInfo): String? = info.wapiPsk?.keyType
 
-    private var cachedPlanUrl: String? = null
+    private data class PlanProvider(
+        val key: String,
+        val name: String,
+        val baseUrl: String
+    ) {
+        val loginCardUrl: String get() = "$baseUrl/api/card/loginCard"
+        val orderListUrl: String get() = "$baseUrl/api/order/orderList"
+    }
 
-    private fun getPlanUrl(): String {
-        cachedPlanUrl?.let { return it }
-        val prefs = dataStore.context.getSharedPreferences("mifi_prefs", android.content.Context.MODE_PRIVATE)
-        val saved = prefs.getString("plan_api_url", null)
-        if (saved != null) {
-            cachedPlanUrl = saved
-            return saved
+    private data class PlanProviderDiscovery(
+        val provider: PlanProvider? = null,
+        val response: PlanLoginResponse
+    )
+
+    private val planProviders = listOf(
+        PlanProvider("xuanxiao", "喧嚣", "http://gdey.ruijiadashop.cn"),
+        PlanProvider("shengtonglong", "盛通龙", "http://pddwifi.gzkpiot.com"),
+        PlanProvider("jingle", "晶乐", "http://cxhy.hengheiot.com")
+    )
+
+    private var cachedPlanProviderRechargeNo: String? = null
+    private var cachedPlanProviderKey: String? = null
+
+    private fun getCachedPlanProvider(rechargeNo: String): PlanProvider? {
+        if (cachedPlanProviderRechargeNo == rechargeNo) {
+            cachedPlanProviderKey?.let { key -> return planProviders.firstOrNull { it.key == key } }
         }
-        return "http://bcdc.ruijiadashop.cn/api/card/loginCard"
+
+        val prefs = dataStore.context.getSharedPreferences("mifi_prefs", android.content.Context.MODE_PRIVATE)
+        val savedRechargeNo = prefs.getString("plan_provider_recharge_no", null)
+        val savedKey = prefs.getString("plan_provider_key", null)
+        if (savedRechargeNo == rechargeNo && savedKey != null) {
+            cachedPlanProviderRechargeNo = savedRechargeNo
+            cachedPlanProviderKey = savedKey
+            return planProviders.firstOrNull { it.key == savedKey }
+        }
+
+        val legacyUrl = prefs.getString("plan_api_url", null)
+        return legacyUrl?.let { url ->
+            planProviders.firstOrNull { provider ->
+                url.contains(provider.baseUrl.removePrefix("http://").removePrefix("https://")) ||
+                    (provider.key == "xuanxiao" && url.contains("bcdc.ruijiadashop.cn"))
+            }
+        }
     }
 
-    private fun savePlanUrl(url: String) {
-        cachedPlanUrl = url
+    private fun savePlanProvider(rechargeNo: String, provider: PlanProvider) {
+        cachedPlanProviderRechargeNo = rechargeNo
+        cachedPlanProviderKey = provider.key
         dataStore.context.getSharedPreferences("mifi_prefs", android.content.Context.MODE_PRIVATE)
-            .edit().putString("plan_api_url", url).apply()
+            .edit()
+            .putString("plan_provider_recharge_no", rechargeNo)
+            .putString("plan_provider_key", provider.key)
+            .putString("plan_api_url", provider.loginCardUrl)
+            .apply()
     }
 
-    private fun makePlanRequest(url: String, body: okhttp3.RequestBody): okhttp3.Response {
-        val request = Request.Builder().url(url).post(body).build()
-        return okHttpClient.newBuilder()
-            .followRedirects(false)
-            .build()
-            .newCall(request).execute()
+    private fun candidatePlanProviders(rechargeNo: String): List<PlanProvider> {
+        val cachedProvider = getCachedPlanProvider(rechargeNo)
+        return if (cachedProvider == null) {
+            planProviders
+        } else {
+            listOf(cachedProvider) + planProviders.filterNot { it.key == cachedProvider.key }
+        }
+    }
+
+    private fun planLoginBody(rechargeNo: String): okhttp3.RequestBody =
+        gson.toJson(mapOf("dev_no" to rechargeNo, "type" to 2))
+            .toRequestBody("application/json".toMediaType())
+
+    private fun orderListBody(rechargeNo: String): okhttp3.RequestBody =
+        gson.toJson(mapOf("dev_no" to rechargeNo))
+            .toRequestBody("application/json".toMediaType())
+
+    private fun makePlanRequest(url: String, body: okhttp3.RequestBody): String {
+        var requestUrl = url
+        var redirectCount = 0
+
+        while (true) {
+            val request = Request.Builder()
+                .url(requestUrl)
+                .header("Accept", "application/json")
+                .post(body)
+                .build()
+            val response = okHttpClient.newBuilder()
+                .followRedirects(false)
+                .build()
+                .newCall(request)
+                .execute()
+
+            response.use {
+                if (it.code in 301..308) {
+                    val location = it.header("Location")
+                        ?: throw java.io.IOException("Redirect without Location")
+                    if (redirectCount++ >= 3) throw java.io.IOException("Too many redirects")
+                    requestUrl = resolveRedirectUrl(requestUrl, location)
+                    return@use
+                }
+                if (!it.isSuccessful) throw java.io.IOException("HTTP ${it.code}")
+                return it.body?.string() ?: ""
+            }
+        }
+    }
+
+    private fun resolveRedirectUrl(baseUrl: String, location: String): String =
+        runCatching { java.net.URI(baseUrl).resolve(location).toString() }
+            .getOrElse { location }
+
+    private fun requestPlanInfo(provider: PlanProvider, rechargeNo: String): PlanLoginResponse {
+        val json = makePlanRequest(provider.loginCardUrl, planLoginBody(rechargeNo))
+        return gson.fromJson(json, PlanLoginResponse::class.java)
+            ?: PlanLoginResponse(code = 0, msg = "套餐服务返回为空")
+    }
+
+    private fun requestOrderList(provider: PlanProvider, rechargeNo: String): OrderListResponse {
+        val json = makePlanRequest(provider.orderListUrl, orderListBody(rechargeNo))
+        return gson.fromJson(json, OrderListResponse::class.java)
+            ?: OrderListResponse(code = 0, msg = "订单服务返回为空")
+    }
+
+    private fun discoverPlanProvider(rechargeNo: String): PlanProviderDiscovery {
+        var hasServiceResponse = false
+
+        candidatePlanProviders(rechargeNo).forEach { provider ->
+            val response = runCatching { requestPlanInfo(provider, rechargeNo) }.getOrNull()
+                ?: return@forEach
+            hasServiceResponse = true
+            if (response.isSuccess) {
+                savePlanProvider(rechargeNo, provider)
+                return PlanProviderDiscovery(provider, response)
+            }
+        }
+
+        val message = if (hasServiceResponse) {
+            "未在${planProviders.joinToString("、") { it.name }}查询到该充值号"
+        } else {
+            "套餐服务暂不可用"
+        }
+        return PlanProviderDiscovery(response = PlanLoginResponse(code = 0, msg = message))
     }
 
     suspend fun getPlanInfo(): Result<PlanLoginResponse> = withContext(Dispatchers.IO) {
         try {
             val rechargeNo = dataStore.getRechargeNo()
             if (rechargeNo.isEmpty()) return@withContext Result.failure(Exception("未设置充值号"))
-            val body = gson.toJson(mapOf("dev_no" to rechargeNo, "type" to 2))
-                .toRequestBody("application/json".toMediaType())
-
-            var url = getPlanUrl()
-            var response = makePlanRequest(url, body)
-
-            if (response.code in 301..302) {
-                val newUrl = response.header("Location")
-                response.close()
-                if (newUrl != null) {
-                    savePlanUrl(newUrl)
-                    url = newUrl
-                    response = makePlanRequest(url, body)
-                }
-            }
-
-            val json = response.body?.string() ?: ""
-            response.close()
-            val result = gson.fromJson(json, PlanLoginResponse::class.java)
-            Result.success(result)
+            Result.success(discoverPlanProvider(rechargeNo).response)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -527,27 +622,14 @@ class MiFiRepository @Inject constructor(
         try {
             val rechargeNo = dataStore.getRechargeNo()
             if (rechargeNo.isEmpty()) return@withContext Result.failure(Exception("未设置充值号"))
-            val body = gson.toJson(mapOf("dev_no" to rechargeNo))
-                .toRequestBody("application/json".toMediaType())
-
-            var url = getPlanUrl().replace("/api/card/loginCard", "/api/order/orderList")
-            var response = makePlanRequest(url, body)
-
-            if (response.code in 301..302) {
-                val newUrl = response.header("Location")
-                response.close()
-                if (newUrl != null) {
-                    val orderUrl = newUrl.replace("/api/card/loginCard", "/api/order/orderList")
-                    val reBody = gson.toJson(mapOf("dev_no" to rechargeNo))
-                        .toRequestBody("application/json".toMediaType())
-                    response = makePlanRequest(orderUrl, reBody)
-                }
+            val discovery = discoverPlanProvider(rechargeNo)
+            val provider = discovery.provider
+            if (provider == null) {
+                return@withContext Result.success(
+                    OrderListResponse(code = 0, msg = discovery.response.msg)
+                )
             }
-
-            val json = response.body?.string() ?: ""
-            response.close()
-            val result = gson.fromJson(json, OrderListResponse::class.java)
-            Result.success(result)
+            Result.success(requestOrderList(provider, rechargeNo))
         } catch (e: Exception) {
             Result.failure(e)
         }

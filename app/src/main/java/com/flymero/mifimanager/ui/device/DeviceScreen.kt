@@ -5,9 +5,11 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,13 +23,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
@@ -78,6 +80,7 @@ import com.flymero.mifimanager.navigation.LocalGlobalSnackbar
 import com.flymero.mifimanager.ui.components.InfoRow
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.theme.LocalThemeControl
+import com.flymero.mifimanager.ui.util.formatCarrierName
 
 private data class NetworkModeOption(val value: String, val label: String)
 
@@ -465,7 +468,9 @@ private fun RouterStatusBanner(state: DeviceState) {
     }
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(98.dp),
         shape = MaterialTheme.shapes.large,
         color = containerColor,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
@@ -491,12 +496,23 @@ private fun RouterStatusBanner(state: DeviceState) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                if (state.operationInProgress || state.isRefreshing) {
-                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                Box(
+                    modifier = Modifier.size(22.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (state.operationInProgress || state.isRefreshing) {
+                        CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                    }
                 }
             }
-            if (state.operationInProgress || state.isRefreshing) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+            ) {
+                if (state.operationInProgress || state.isRefreshing) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
             }
         }
     }
@@ -548,29 +564,39 @@ private fun SimManagementCard(
 ) {
     ManagementCard(title = "SIM 卡管理", icon = { Icon(Icons.Default.SimCard, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }) {
         InfoRow("当前模式", if (simInfo.switchMode == "0") "智能选网" else "指定 SIM")
-        if (isPlanLoading) {
-            Text(
-                text = "运营商与实名信息加载中…",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(20.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Crossfade(targetState = isPlanLoading, label = "sim-plan-loading") { loading ->
+                Text(
+                    text = if (loading) "运营商与实名信息加载中…" else "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         simInfo.simList.forEachIndexed { index, sim ->
             val planSim = planEquipment?.cardList?.find { it.iccid == sim.simIccid }
             val isCurrent = isCurrentSim(simInfo, sim)
+            val carrierText = formatCarrierName(planSim?.operatorText?.takeIf { it.isNotBlank() } ?: sim.carrierName())
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "${sim.simName.ifBlank { "SIM${index + 1}" }}（${planSim?.operatorText ?: sim.carrierName()}）",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal
-                    )
+                    Crossfade(targetState = carrierText, label = "sim-carrier-$index") { carrier ->
+                        Text(
+                            text = "${sim.simName.ifBlank { "SIM${index + 1}" }}（$carrier）",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal
+                        )
+                    }
                     if (sim.isPresent()) {
                         Text(
                             text = "ICCID: ${sim.simIccid}",
@@ -584,12 +610,22 @@ private fun SimManagementCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    planSim?.realnameStatusText?.takeIf { it.isNotBlank() }?.let {
-                        Text(
-                            text = "实名: $it",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(20.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Crossfade(
+                            targetState = planSim?.realnameStatusText?.takeIf { it.isNotBlank() }.orEmpty(),
+                            label = "sim-realname-$index"
+                        ) { realname ->
+                            Text(
+                                text = if (realname.isNotBlank()) "实名: $realname" else "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
                 when {
@@ -911,7 +947,7 @@ private fun ActionsCard(
         }
 
         OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Logout, contentDescription = null)
+            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
             Text("  退出登录")
         }
     }

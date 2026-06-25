@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.flymero.mifimanager.ui.components.InfoRow
 import com.flymero.mifimanager.ui.components.KeyValueRow
+import com.flymero.mifimanager.ui.util.formatCarrierName
 
 @Composable
 fun PlanScreen(viewModel: PlanViewModel = hiltViewModel()) {
@@ -113,7 +114,7 @@ fun PlanScreen(viewModel: PlanViewModel = hiltViewModel()) {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "运营商: ${plan.operator} | 状态: ${plan.status}",
+                    text = "运营商: ${formatCarrierName(plan.operator).ifEmpty { "--" }} | 状态: ${plan.status}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                 )
@@ -242,7 +243,7 @@ fun PlanScreen(viewModel: PlanViewModel = hiltViewModel()) {
                         ) {
                             Column {
                                 Text(
-                                    text = "${sim.operatorText} ${if (sim.isInUse()) "(当前)" else ""}",
+                                    text = "${formatCarrierName(sim.operatorText)} ${if (sim.isInUse()) "(当前)" else ""}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = if (sim.isInUse()) FontWeight.Bold else FontWeight.Normal
                                 )

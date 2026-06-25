@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -66,6 +67,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -89,6 +91,8 @@ import com.flymero.mifimanager.ui.theme.SpeedUpload
 import com.flymero.mifimanager.ui.theme.Success
 import com.flymero.mifimanager.ui.theme.AppColors
 import com.flymero.mifimanager.ui.theme.Warning
+import com.flymero.mifimanager.ui.util.carrierLogoRes
+import com.flymero.mifimanager.ui.util.formatCarrierName
 import kotlin.math.ceil
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -162,6 +166,8 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val animatedChipContainer by animateColorAsState(connectionChipContainer, tween(300), label = "chipContainer")
     val animatedBattery by animateIntAsState(batteryPercent, tween(500), label = "battery")
     val animatedSignal by animateIntAsState(signalQuality, tween(400), label = "signal")
+    val carrierName = formatCarrierName(homepage.networkName).ifEmpty { "未知" }
+    val carrierLogo = carrierLogoRes(homepage.networkName)
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -187,7 +193,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "${homepage.networkName} · ${status.networkType()}",
+                            text = "$carrierName · ${status.networkType()}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -230,8 +236,17 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         DashboardMetricCard(
                             title = "运营商",
-                            primary = homepage.networkName.ifEmpty { "未知" },
-                            icon = Icons.Default.Language,
+                            primary = carrierName,
+                            icon = if (carrierLogo == null) Icons.Default.Language else null,
+                            iconContent = carrierLogo?.let { logo ->
+                                {
+                                    Image(
+                                        painter = painterResource(logo),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            },
                             modifier = Modifier.weight(1f)
                         )
                         DashboardMetricCard(
@@ -465,7 +480,8 @@ private fun DashboardMetricCard(
     secondary: String? = null,
     footnote: String? = null,
     accentColor: Color = MaterialTheme.colorScheme.onSurface,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    iconContent: (@Composable () -> Unit)? = null
 ) {
     Surface(
         modifier = modifier.height(122.dp),
@@ -482,19 +498,23 @@ private fun DashboardMetricCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                icon?.let {
+                if (icon != null || iconContent != null) {
                     Box(
                         modifier = Modifier
                             .size(28.dp)
                             .background(accentColor.copy(alpha = 0.12f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = it,
-                            contentDescription = null,
-                            tint = accentColor,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        if (iconContent != null) {
+                            iconContent()
+                        } else if (icon != null) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
                 Text(
@@ -578,6 +598,7 @@ private fun PackageDetailSheet(
 ) {
     val daysLeft = plan.daysUntilExpire()
     val dailyBudget = plan.dailyBudget()
+    val dailyAverage = plan.dailyAverageUsage()
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -695,6 +716,8 @@ private fun PackageDetailSheet(
                 KeyValueRow(label = "已使用", value = plan.usedFormatted())
                 SectionDivider()
                 KeyValueRow(label = "剩余流量", value = plan.remainFormatted())
+                SectionDivider()
+                KeyValueRow(label = "日均使用", value = dailyAverage ?: "--")
                 daysLeft?.let {
                     SectionDivider()
                     KeyValueRow(label = "距离到期", value = "$it 天")
@@ -746,7 +769,7 @@ private fun PackageDetailSheet(
 
         val planRows = buildList {
             plan.balance.takeIf { it.isNotBlank() }?.let { add("账户余额" to "¥$it") }
-            plan.operator.takeIf { it.isNotBlank() }?.let { add("运营商" to it) }
+            plan.operator.takeIf { it.isNotBlank() }?.let { add("运营商" to formatCarrierName(it)) }
             plan.realnameStatus.takeIf { it.isNotBlank() }?.let { add("实名状态" to it) }
             plan.paymentTypeText.takeIf { it.isNotBlank() }?.let { add("支付方式" to it) }
         }
@@ -791,7 +814,7 @@ private fun PackageDetailSheet(
                     }
                     equipment.cardList.forEach { sim ->
                         val label = buildString {
-                            append(sim.operatorText.ifBlank { "SIM 卡" })
+                            append(formatCarrierName(sim.operatorText).ifBlank { "SIM 卡" })
                             if (sim.isInUse()) append("（当前）")
                         }
                         val value = sim.realnameStatusText.ifBlank { "--" }
@@ -842,11 +865,41 @@ private fun PlanInfo.daysUntilExpire(): Int? {
 private fun PlanInfo.dailyBudget(): String? {
     val days = daysUntilExpire() ?: return null
     if (days == 0) return remainFormatted()
-    val remainPerDayMb = remainAmount / days
+    val remainPerDayMb = remainAmountSafe() / days
     return when {
         remainPerDayMb >= 1024 -> "%.2f GB/天".format(remainPerDayMb / 1024)
         else -> "%.0f MB/天".format(ceil(remainPerDayMb))
     }
+}
+
+private fun PlanInfo.dailyAverageUsage(): String? {
+    val daysLeft = daysUntilExpire() ?: return null
+    val totalDays = packageDurationDays() ?: return null
+    val usedDays = (totalDays - daysLeft).coerceAtLeast(1)
+    return formatDailyMb(usedAmount() / usedDays)
+}
+
+private fun PlanInfo.packageDurationDays(): Int? {
+    val name = packageName
+    Regex("""(\d+)\s*(天|日)""").find(name)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let {
+        return it
+    }
+    Regex("""(\d+)\s*(个月|月)""").find(name)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let {
+        return it * 30
+    }
+    Regex("""(\d+)\s*年""").find(name)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let {
+        return it * 365
+    }
+    return when {
+        name.contains("月") -> 30
+        name.contains("年") -> 365
+        else -> null
+    }
+}
+
+private fun formatDailyMb(mb: Double): String = when {
+    mb >= 1024 -> "%.2f GB/天".format(mb / 1024)
+    else -> "%.0f MB/天".format(ceil(mb))
 }
 
 private fun formatUptime(totalSeconds: Long): String {

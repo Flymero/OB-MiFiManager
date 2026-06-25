@@ -33,6 +33,7 @@ import com.flymero.mifimanager.ui.components.SectionDivider
 import com.flymero.mifimanager.ui.theme.SignalExcellent
 import com.flymero.mifimanager.ui.theme.AppColors
 import com.flymero.mifimanager.ui.theme.Warning
+import com.flymero.mifimanager.ui.util.formatCarrierName
 
 @Composable
 fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
@@ -168,7 +169,7 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
             SectionCard {
                 CardTitle("网络详情")
                 if (state.networkName.isNotBlank()) {
-                    KeyValueRow("运营商", state.networkName)
+                    KeyValueRow("运营商", formatCarrierName(state.networkName))
                     SectionDivider()
                 }
                 KeyValueRow("WAN IP", pdp.ipv4.ifBlank { "--" })

@@ -14,12 +14,13 @@ android {
         applicationId = "com.flymero.mifimanager"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "2.2.0"
+        versionCode = 250
+        versionName = "2.5.0"
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -41,6 +42,10 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    lint {
+        disable += "NullSafeMutableLiveData"
     }
 }
 

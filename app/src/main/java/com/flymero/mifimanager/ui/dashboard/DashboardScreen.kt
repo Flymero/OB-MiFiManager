@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -69,21 +71,25 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -112,6 +118,7 @@ import com.flymero.mifimanager.ui.theme.Warning
 import com.flymero.mifimanager.ui.util.carrierLogoRes
 import com.flymero.mifimanager.ui.util.formatCarrierName
 import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -246,7 +253,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                 cards = state.dashboardCards,
                 editMode = isEditingCards,
                 hasPlan = plan != null,
-                onMove = viewModel::moveDashboardCard,
+                onReorder = viewModel::saveDashboardCardOrder,
                 onRemove = viewModel::removeDashboardCard
             ) { card ->
                 DashboardCardContent(
@@ -296,10 +303,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
         ) {
             AddDashboardCardsSheet(
                 missingCards = missingCards,
-                onAdd = { card ->
-                    viewModel.addDashboardCard(card)
-                    showAddCards = false
-                },
+                onAdd = viewModel::addDashboardCard,
                 onClose = { showAddCards = false }
             )
         }
@@ -355,136 +359,295 @@ private fun DashboardCardsList(
     cards: List<DashboardCardType>,
     editMode: Boolean,
     hasPlan: Boolean,
-    onMove: (Int, Int) -> Unit,
+    onReorder: (List<DashboardCardType>) -> Unit,
     onRemove: (DashboardCardType) -> Unit,
     content: @Composable (DashboardCardType) -> Unit
 ) {
-    val visibleCards = if (editMode) {
+    val cardSpacing = 12.dp
+    var previewOrder by remember { mutableStateOf(cards) }
+    var lastDragOrder by remember { mutableStateOf(cards) }
+    var draggedCard by remember { mutableStateOf<DashboardCardType?>(null) }
+    var dragCenterY by remember { mutableStateOf<Float?>(null) }
+    var dragPointerY by remember { mutableStateOf<Float?>(null) }
+    var dragGrabOffsetY by remember { mutableStateOf(0f) }
+    var draggedBounds by remember { mutableStateOf<Rect?>(null) }
+    var dragBaseOrder by remember { mutableStateOf<List<DashboardCardType>>(emptyList()) }
+    var dragBaseBounds by remember { mutableStateOf<Map<DashboardCardType, Rect>>(emptyMap()) }
+    var containerTopY by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(cards, editMode) {
+        if (!editMode || draggedCard == null) {
+            previewOrder = cards
+            lastDragOrder = cards
+        }
+    }
+
+    val displayCards = if (editMode) {
         cards
     } else {
         cards.filter { it != DashboardCardType.PlanUsage || hasPlan }
     }
+    val latestDisplayCards by rememberUpdatedState(displayCards)
+    val latestPreviewOrder by rememberUpdatedState(previewOrder)
     val itemBounds = remember { mutableStateMapOf<DashboardCardType, Rect>() }
-    var draggedCard by remember { mutableStateOf<DashboardCardType?>(null) }
-    var dragOffsetY by remember { mutableStateOf(0f) }
-    var dragStartBounds by remember { mutableStateOf<Rect?>(null) }
+    val density = LocalDensity.current
+    val spacingPx = with(density) { cardSpacing.toPx() }
+    val activeBounds = if (draggedCard != null && dragBaseBounds.isNotEmpty()) {
+        dragBaseBounds
+    } else {
+        itemBounds
+    }
+    val activeOrder = if (draggedCard != null && dragBaseOrder.isNotEmpty()) {
+        dragBaseOrder
+    } else {
+        displayCards
+    }
+    val projectedTops = remember(previewOrder, activeOrder, activeBounds, spacingPx, draggedCard) {
+        if (draggedCard == null) {
+            emptyMap()
+        } else {
+            calculateDashboardSlotTops(previewOrder, activeOrder, activeBounds, spacingPx)
+        }
+    }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        visibleCards.forEach { card ->
-            val isDragging = draggedCard == card
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .zIndex(if (isDragging) 1f else 0f)
-                    .graphicsLayer {
-                        if (isDragging) {
-                            translationY = dragOffsetY
-                            scaleX = 1.015f
-                            scaleY = 1.015f
-                            shadowElevation = 12f
-                        }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { coordinates ->
+                containerTopY = coordinates.localToWindow(Offset.Zero).y
+            }
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(cardSpacing)) {
+            displayCards.forEach { card ->
+                key(card) {
+                    val isDragging = draggedCard == card
+                    val targetTranslationY = if (draggedCard != null) {
+                        val top = projectedTops[card]
+                        val bounds = activeBounds[card]
+                        if (top != null && bounds != null) top - bounds.top else 0f
+                    } else {
+                        0f
                     }
-                    .onGloballyPositioned { coordinates ->
-                        itemBounds[card] = coordinates.boundsInRoot()
-                    }
-                    .then(
-                        if (editMode) {
-                            Modifier.pointerInput(card, visibleCards) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = {
-                                        draggedCard = card
-                                        dragOffsetY = 0f
-                                        dragStartBounds = itemBounds[card]
-                                    },
-                                    onDrag = { change, dragAmount ->
-                                        change.consume()
-                                        dragOffsetY += dragAmount.y
-                                        val startBounds = dragStartBounds ?: return@detectDragGesturesAfterLongPress
-                                        val draggedCenter = Offset(
-                                            x = startBounds.center.x,
-                                            y = startBounds.center.y + dragOffsetY
-                                        )
-                                        val targetCard = visibleCards.firstOrNull { candidate ->
-                                            candidate != card && itemBounds[candidate]?.contains(draggedCenter) == true
-                                        }
-                                        if (targetCard != null) {
-                                            val fromIndex = cards.indexOf(card)
-                                            val toIndex = cards.indexOf(targetCard)
-                                            if (fromIndex >= 0 && toIndex >= 0) {
-                                                onMove(fromIndex, toIndex)
-                                            }
-                                        }
-                                    },
-                                    onDragEnd = {
-                                        draggedCard = null
-                                        dragOffsetY = 0f
-                                        dragStartBounds = null
-                                    },
-                                    onDragCancel = {
-                                        draggedCard = null
-                                        dragOffsetY = 0f
-                                        dragStartBounds = null
-                                    }
+                    val animatedTranslationY by animateFloatAsState(
+                        targetValue = targetTranslationY,
+                        animationSpec = tween(durationMillis = 150),
+                        label = "dashboard-card-translation"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .zIndex(if (isDragging) 1f else 0f)
+                            .graphicsLayer {
+                                translationY = animatedTranslationY
+                                if (isDragging) alpha = 0.22f
+                            }
+                            .onGloballyPositioned { coordinates ->
+                                val position = coordinates.localToWindow(Offset.Zero)
+                                itemBounds[card] = Rect(
+                                    offset = position,
+                                    size = Size(
+                                        width = coordinates.size.width.toFloat(),
+                                        height = coordinates.size.height.toFloat()
+                                    )
                                 )
                             }
-                        } else {
-                            Modifier
-                        }
-                    )
-            ) {
-                content(card)
-                if (editMode) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .then(
+                                if (editMode) {
+                                    Modifier.pointerInput(card, editMode) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = { localOffset ->
+                                                val currentBounds = latestDisplayCards.mapNotNull { item ->
+                                                    itemBounds[item]?.let { item to it }
+                                                }.toMap()
+                                                val bounds = currentBounds[card] ?: itemBounds[card]
+                                                dragBaseOrder = latestDisplayCards
+                                                dragBaseBounds = currentBounds
+                                                previewOrder = latestDisplayCards
+                                                lastDragOrder = latestDisplayCards
+                                                draggedCard = card
+                                                draggedBounds = bounds
+                                                dragGrabOffsetY = localOffset.y
+                                                dragPointerY = bounds?.let { it.top + localOffset.y }
+                                                dragCenterY = bounds?.center?.y
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                val currentPointerY = dragPointerY ?: itemBounds[card]?.center?.y
+                                                    ?: return@detectDragGesturesAfterLongPress
+                                                val nextPointerY = currentPointerY + dragAmount.y
+                                                dragPointerY = nextPointerY
+                                                val currentBounds = draggedBounds ?: itemBounds[card]
+                                                    ?: return@detectDragGesturesAfterLongPress
+                                                val nextCenterY = nextPointerY + (currentBounds.height / 2f - dragGrabOffsetY)
+                                                dragCenterY = nextCenterY
+                                                val baseOrder = dragBaseOrder.ifEmpty { latestDisplayCards }
+                                                val baseBounds = dragBaseBounds.ifEmpty { itemBounds.toMap() }
+                                                val nextOrder = calculateDashboardDragOrder(
+                                                    baseOrder = baseOrder,
+                                                    bounds = baseBounds,
+                                                    draggedCard = card,
+                                                    dragCenterY = nextCenterY,
+                                                    spacingPx = spacingPx
+                                                )
+                                                if (nextOrder != latestPreviewOrder) {
+                                                    previewOrder = nextOrder
+                                                    lastDragOrder = nextOrder
+                                                }
+                                            },
+                                            onDragEnd = {
+                                                val finalOrder = lastDragOrder
+                                                previewOrder = finalOrder
+                                                onReorder(finalOrder)
+                                                draggedCard = null
+                                                dragCenterY = null
+                                                dragPointerY = null
+                                                draggedBounds = null
+                                                dragBaseOrder = emptyList()
+                                                dragBaseBounds = emptyMap()
+                                            },
+                                            onDragCancel = {
+                                                previewOrder = cards
+                                                lastDragOrder = cards
+                                                draggedCard = null
+                                                dragCenterY = null
+                                                dragPointerY = null
+                                                draggedBounds = null
+                                                dragBaseOrder = emptyList()
+                                                dragBaseBounds = emptyMap()
+                                            }
+                                        )
+                                    }
+                                } else {
+                                    Modifier
+                                }
+                            )
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.94f)
-                        ) {
+                        content(card)
+                        if (editMode) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    Icons.Default.DragHandle,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "长按拖动",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                        IconButton(
-                            onClick = { onRemove(card) },
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Surface(
-                                modifier = Modifier.fillMaxSize(),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.errorContainer
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        Icons.Default.Close,
-                                        contentDescription = "隐藏${card.title}",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.94f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.DragHandle,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "长按拖动",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                }
+                                IconButton(
+                                    onClick = { onRemove(card) },
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.fillMaxSize(),
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.errorContainer
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = "隐藏${card.title}",
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+
+        val popupCard = draggedCard
+        val popupBounds = draggedBounds
+        val popupPointerY = dragPointerY
+        if (popupCard != null && popupBounds != null && popupPointerY != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset {
+                        IntOffset(
+                            x = 0,
+                            y = (popupPointerY - dragGrabOffsetY - containerTopY).roundToInt()
+                        )
+                    }
+                    .zIndex(2f)
+                    .graphicsLayer {
+                        scaleX = 1.015f
+                        scaleY = 1.015f
+                        alpha = 0.98f
+                    }
+            ) {
+                content(popupCard)
+            }
+        }
+    }
+}
+
+private fun calculateDashboardDragOrder(
+    baseOrder: List<DashboardCardType>,
+    bounds: Map<DashboardCardType, Rect>,
+    draggedCard: DashboardCardType,
+    dragCenterY: Float,
+    spacingPx: Float
+): List<DashboardCardType> {
+    if (draggedCard !in baseOrder) return baseOrder
+    val remainingCards = baseOrder.filterNot { it == draggedCard }
+    if (remainingCards.isEmpty()) return listOf(draggedCard)
+
+    val firstTop = baseOrder.mapNotNull { bounds[it]?.top }.minOrNull() ?: return baseOrder
+    var projectedTop = firstTop
+    var insertIndex = remainingCards.size
+
+    for ((index, card) in remainingCards.withIndex()) {
+        val height = bounds[card]?.height ?: bounds[draggedCard]?.height ?: 0f
+        val centerY = projectedTop + height / 2f
+        if (dragCenterY < centerY) {
+            insertIndex = index
+            break
+        }
+        projectedTop += height + spacingPx
+    }
+
+    return remainingCards.toMutableList().apply {
+        add(insertIndex.coerceIn(0, size), draggedCard)
+    }
+}
+
+private fun calculateDashboardSlotTops(
+    order: List<DashboardCardType>,
+    baseOrder: List<DashboardCardType>,
+    bounds: Map<DashboardCardType, Rect>,
+    spacingPx: Float
+): Map<DashboardCardType, Float> {
+    if (order.isEmpty()) return emptyMap()
+    val firstTop = baseOrder.mapNotNull { bounds[it]?.top }.minOrNull() ?: return emptyMap()
+    var nextTop = firstTop
+    return buildMap {
+        order.forEach { card ->
+            put(card, nextTop)
+            nextTop += (bounds[card]?.height ?: 0f) + spacingPx
         }
     }
 }

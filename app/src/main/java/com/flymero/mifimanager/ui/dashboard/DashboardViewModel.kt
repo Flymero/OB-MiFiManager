@@ -83,6 +83,10 @@ class DashboardViewModel @Inject constructor(
         saveDashboardCards(updatedCards)
     }
 
+    fun saveDashboardCardOrder(cards: List<DashboardCardType>) {
+        saveDashboardCards(cards)
+    }
+
     fun removeDashboardCard(card: DashboardCardType) {
         val currentCards = _state.value.dashboardCards
         if (currentCards.size <= 1) {

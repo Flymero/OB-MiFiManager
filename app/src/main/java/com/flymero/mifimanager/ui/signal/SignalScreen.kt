@@ -52,9 +52,10 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
         return
     }
 
-    val lte = state.engineeringInfo.lte ?: return
-    val score = lte.signalScore()
-    val qualityText = lte.qualityText(score)
+    val hasLteData = state.engineeringInfo.lte != null
+    val lte = state.engineeringInfo.lte ?: LteInfo()
+    val score = if (hasLteData) lte.signalScore() else 0
+    val qualityText = if (hasLteData) lte.qualityText(score) else "--"
     val qualityColor = if (score >= 75) SignalExcellent else Warning
     val qualityContainer = if (score >= 75) AppColors.successContainer() else AppColors.warningContainer()
     val animatedScoreProgress by animateFloatAsState(
@@ -113,13 +114,13 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SignalMetricCard(
                     label = "RSRP",
-                    value = "${lte.rsrp} dBm",
+                    value = lte.rsrp.withUnit("dBm"),
                     valueColor = SignalExcellent,
                     modifier = Modifier.weight(1f)
                 )
                 SignalMetricCard(
                     label = "SINR",
-                    value = "${lte.sinr} dB",
+                    value = lte.sinr.withUnit("dB"),
                     valueColor = SignalExcellent,
                     containerColor = animatedQualityContainer,
                     borderColor = animatedQualityContainer,
@@ -127,7 +128,7 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
                 )
                 SignalMetricCard(
                     label = "RSRQ",
-                    value = "${lte.rsrq} dB",
+                    value = lte.rsrq.withUnit("dB"),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -135,40 +136,40 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
 
         SectionCard {
             CardTitle("基站信息")
-            KeyValueRow("MCC", lte.mcc)
+            KeyValueRow("MCC", lte.mcc.orDash())
             SectionDivider()
-            KeyValueRow("MNC", lte.mnc)
+            KeyValueRow("MNC", lte.mnc.orDash())
             SectionDivider()
-            KeyValueRow("TAC", lte.tac)
+            KeyValueRow("TAC", lte.tac.orDash())
             SectionDivider()
-            KeyValueRow("PCI", lte.phyCellId)
+            KeyValueRow("PCI", lte.phyCellId.orDash())
             SectionDivider()
-            KeyValueRow("eNB ID", lte.enbId)
+            KeyValueRow("eNB ID", lte.enbId.orDash())
             SectionDivider()
-            KeyValueRow("Cell ID", lte.cellId)
+            KeyValueRow("Cell ID", lte.cellId.orDash())
             SectionDivider()
-            KeyValueRow("ECGI", lte.ecgi)
+            KeyValueRow("ECGI", lte.ecgi.orDash())
         }
 
         SectionCard {
             CardTitle("频段信息")
-            KeyValueRow("频段", "Band ${lte.band}")
+            KeyValueRow("频段", lte.band.toBandText())
             SectionDivider()
-            KeyValueRow("带宽", lte.bandwidthMhz())
+            KeyValueRow("带宽", if (lte.dlBandwidth.isBlank()) "--" else lte.bandwidthMhz())
             SectionDivider()
-            KeyValueRow("下行 EARFCN", lte.dlEuArfcn)
+            KeyValueRow("下行 EARFCN", lte.dlEuArfcn.orDash())
             SectionDivider()
-            KeyValueRow("上行 EARFCN", lte.ulEuArfcn)
+            KeyValueRow("上行 EARFCN", lte.ulEuArfcn.orDash())
             SectionDivider()
-            KeyValueRow("CQI", "${lte.cqi} (0-15)")
+            KeyValueRow("CQI", lte.cqi.withSuffix(" (0-15)"))
             SectionDivider()
-            KeyValueRow("RSSI", "${lte.rssi} dBm")
+            KeyValueRow("RSSI", lte.rssi.withUnit("dBm"))
             SectionDivider()
-            KeyValueRow("发射功率", "${lte.txPower} dBm")
+            KeyValueRow("发射功率", lte.txPower.withUnit("dBm"))
             SectionDivider()
-            KeyValueRow("下行吞吐", "${lte.dlThroughPut} Mbps")
+            KeyValueRow("下行吞吐", lte.dlThroughPut.withUnit("Mbps"))
             SectionDivider()
-            KeyValueRow("上行吞吐", "${lte.ulThroughPut} Mbps")
+            KeyValueRow("上行吞吐", lte.ulThroughPut.withUnit("Mbps"))
         }
 
         if (lte.mainRsrp.isNotBlank() || lte.diversityRsrp.isNotBlank()) {
@@ -273,6 +274,17 @@ private fun LteInfo.qualityText(score: Int): String = when {
     score >= 45 -> "一般"
     else -> "较弱"
 }
+
+private fun String.orDash(): String = ifBlank { "--" }
+
+private fun String.withUnit(unit: String): String =
+    ifBlank { "--" }.let { value -> if (value == "--") value else "$value $unit" }
+
+private fun String.withSuffix(suffix: String): String =
+    ifBlank { "--" }.let { value -> if (value == "--") value else "$value$suffix" }
+
+private fun String.toBandText(): String =
+    ifBlank { "--" }.let { value -> if (value == "--") value else "Band $value" }
 
 private fun formatDuration(seconds: Long): String {
     if (seconds <= 0) return "--"

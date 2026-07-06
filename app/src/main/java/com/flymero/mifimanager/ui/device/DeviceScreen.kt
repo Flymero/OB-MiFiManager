@@ -90,6 +90,7 @@ import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.theme.LocalThemeControl
 import com.flymero.mifimanager.ui.theme.mifiFastEffectsSpec
 import com.flymero.mifimanager.ui.theme.mifiFastSpatialSpec
+import com.flymero.mifimanager.ui.util.carrierTypeOf
 import com.flymero.mifimanager.ui.util.formatCarrierName
 
 private data class NetworkModeOption(val value: String, val label: String)
@@ -635,6 +636,7 @@ private fun SimManagementCard(
                 sim = sim,
                 planSim = planSim,
                 isPlanLoading = isPlanLoading,
+                backendSimName = sim.simName,
                 networkCarrierName = homepageNetworkName,
                 useNetworkCarrierFallback = isNetworkCarrierFallbackSim(simInfo, sim)
             )
@@ -646,7 +648,7 @@ private fun SimManagementCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Crossfade(targetState = carrierText, animationSpec = mifiFastEffectsSpec(), label = "sim-carrier-$index") { carrier ->
                         Text(
-                            text = "${sim.simName.ifBlank { "SIM${index + 1}" }}（$carrier）",
+                            text = "${simSlotLabel(sim, index)}（$carrier）",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal
                         )
@@ -1183,6 +1185,7 @@ private fun simCarrierText(
     sim: SimCard,
     planSim: PlanSimCard?,
     isPlanLoading: Boolean,
+    backendSimName: String,
     networkCarrierName: String,
     useNetworkCarrierFallback: Boolean
 ): String {
@@ -1190,6 +1193,12 @@ private fun simCarrierText(
 
     val planCarrier = formatCarrierName(planSim?.operatorText.orEmpty())
     if (planCarrier.isNotBlank()) return planCarrier
+
+    val simNameCarrier = backendSimName
+        .takeIf { carrierTypeOf(it) != null }
+        ?.let(::formatCarrierName)
+        .orEmpty()
+    if (simNameCarrier.isNotBlank()) return simNameCarrier
 
     val networkCarrier = if (useNetworkCarrierFallback) {
         formatCarrierName(networkCarrierName)
@@ -1201,6 +1210,15 @@ private fun simCarrierText(
     if (isPlanLoading && planSim == null) return "识别中"
 
     return "未知运营商"
+}
+
+private fun simSlotLabel(sim: SimCard, index: Int): String {
+    val backendName = sim.simName.trim()
+    return if (backendName.isNotBlank() && carrierTypeOf(backendName) == null) {
+        backendName
+    } else {
+        "SIM${index + 1}"
+    }
 }
 
 private fun normalizeIccid(value: String): String =

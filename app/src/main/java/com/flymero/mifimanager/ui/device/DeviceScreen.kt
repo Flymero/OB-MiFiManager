@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -484,7 +485,11 @@ private fun RouterStatusBanner(state: DeviceState) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 12.dp)
+                ) {
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleSmall,
@@ -628,26 +633,31 @@ private fun SimManagementCard(
                         }
                     }
                 }
-                when {
-                    !sim.isPresent() -> Text(
-                        text = "未插入",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    isCurrent -> Icon(
-                        Icons.Default.Check,
-                        contentDescription = "当前选择",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    sim.isBanned() -> Text(
-                        text = "已禁用",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    else -> TextButton(onClick = { onSwitchSim(sim.simId) }) {
-                        Text("切换")
+                Box(
+                    modifier = Modifier.width(76.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    when {
+                        !sim.isPresent() -> Text(
+                            text = "未插入",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        isCurrent -> Icon(
+                            Icons.Default.Check,
+                            contentDescription = "当前选择",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        sim.isBanned() -> Text(
+                            text = "已禁用",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        else -> TextButton(onClick = { onSwitchSim(sim.simId) }) {
+                            Text("切换")
+                        }
                     }
                 }
             }
@@ -660,7 +670,6 @@ private fun SimManagementCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (simInfo.switchMode != "0") Modifier.clickable { onSwitchSim("4") } else Modifier)
                 .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -670,13 +679,22 @@ private fun SimManagementCard(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (simInfo.switchMode == "0") FontWeight.SemiBold else FontWeight.Normal
             )
-            if (simInfo.switchMode == "0") {
-                Icon(
-                    Icons.Default.Check,
-                    contentDescription = "当前模式",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp)
-                )
+            Box(
+                modifier = Modifier.width(76.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                if (simInfo.switchMode == "0") {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = "当前模式",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                } else {
+                    TextButton(onClick = { onSwitchSim("4") }) {
+                        Text("切换")
+                    }
+                }
             }
         }
     }

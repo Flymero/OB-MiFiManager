@@ -149,15 +149,10 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val dashboardScrollState = rememberScrollState()
 
     var showPlanDetail by rememberSaveable { mutableStateOf(false) }
-    var showPlanHint by rememberSaveable { mutableStateOf(plan != null) }
     var isEditingCards by rememberSaveable { mutableStateOf(false) }
     var showAddCards by rememberSaveable { mutableStateOf(false) }
     var dashboardScrollViewportBounds by remember { mutableStateOf<Rect?>(null) }
     var dashboardDragOverlay by remember { mutableStateOf<DashboardDragOverlay?>(null) }
-
-    LaunchedEffect(plan != null, plan?.equipment?.devNo, plan?.packageName) {
-        if (plan != null) showPlanHint = true
-    }
 
     LaunchedEffect(state.refreshMessage) {
         state.refreshMessage?.let {
@@ -235,9 +230,9 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
             cellularConnecting = state.cellularConnecting,
             routerReachable = state.routerReachable,
             lastReachableAtLeastOnce = state.lastReachableAtLeastOnce,
-            showPlanHint = showPlanHint,
+            showPlanHint = state.showPlanHint,
             onOpenPlan = {
-                showPlanHint = false
+                viewModel.markPlanHintSeen()
                 showPlanDetail = true
             },
             onToggleCellular = viewModel::toggleCellular
@@ -986,7 +981,7 @@ private fun SpeedLineChart(
                 SpeedSample(1L, 0L, 0L)
             )
             samples.size == 1 -> listOf(
-                SpeedSample(samples.first().timestampMillis - 1000L, 0L, 0L),
+                samples.first(),
                 samples.first()
             )
             else -> samples

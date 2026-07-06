@@ -56,8 +56,18 @@ class DeviceViewModel @Inject constructor(
     init { refresh() }
 
     fun refresh() {
+        refreshInternal(showProgress = true)
+    }
+
+    private fun refreshSilently() {
+        refreshInternal(showProgress = false)
+    }
+
+    private fun refreshInternal(showProgress: Boolean) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isRefreshing = true)
+            if (showProgress) {
+                _state.value = _state.value.copy(isRefreshing = true)
+            }
             val homepage = async { repository.getHomepageInfo() }
             val wan = async { repository.getWanInfo() }
             val dhcp = async { repository.getDhcpInfo() }
@@ -136,8 +146,23 @@ class DeviceViewModel @Inject constructor(
                 repository.setSimConfig("1", simId)
             }
             val success = result.getOrNull()?.isSuccess == true
-            val message = if (success) "SIM卡已切换，正在刷新状态" else "SIM卡切换失败"
+            val optimisticSimInfo = if (success) {
+                val currentSimInfo = _state.value.simInfo
+                if (simId == "4") {
+                    currentSimInfo.copy(switchMode = "0")
+                } else {
+                    currentSimInfo.copy(
+                        switchMode = "1",
+                        currentSimId = simId,
+                        soleSimId = simId
+                    )
+                }
+            } else {
+                _state.value.simInfo
+            }
+            val message = if (success) "SIM卡已切换" else "SIM卡切换失败"
             _state.value = _state.value.copy(
+                simInfo = optimisticSimInfo,
                 actionResult = null,
                 operationInProgress = false,
                 operationMessage = null,
@@ -145,7 +170,7 @@ class DeviceViewModel @Inject constructor(
             )
             globalMessageBus.post(message)
             if (success) delay(5000)
-            refresh()
+            if (success) refreshSilently()
         }
     }
 

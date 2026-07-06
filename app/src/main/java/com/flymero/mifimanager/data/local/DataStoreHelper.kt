@@ -72,4 +72,13 @@ class DataStoreHelper @Inject constructor(
             .putString("dashboard_card_order", cardIds.joinToString(","))
             .apply()
     }
+
+    fun hasSeenPlanUsageHint(): Boolean =
+        prefs.getBoolean("plan_usage_hint_seen", false)
+
+    fun setPlanUsageHintSeen() {
+        prefs.edit()
+            .putBoolean("plan_usage_hint_seen", true)
+            .apply()
+    }
 }

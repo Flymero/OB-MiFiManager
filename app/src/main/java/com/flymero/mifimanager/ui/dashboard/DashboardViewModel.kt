@@ -35,6 +35,7 @@ data class DashboardState(
     val orderList: List<OrderItem> = emptyList(),
     val isOrderLoading: Boolean = false,
     val orderError: String? = null,
+    val showPlanHint: Boolean = false,
     val speedSamples: List<SpeedSample> = emptyList(),
     val dashboardCards: List<DashboardCardType> = DashboardCardType.defaultOrder
 )
@@ -214,7 +215,10 @@ class DashboardViewModel @Inject constructor(
         val result = repository.getPlanInfo()
         val response = result.getOrNull()
         return if (result.isSuccess && response?.isSuccess == true) {
-            _state.value = _state.value.copy(planInfo = response.data)
+            _state.value = _state.value.copy(
+                planInfo = response.data,
+                showPlanHint = response.data != null && !dataStore.hasSeenPlanUsageHint()
+            )
             PlanRefreshResult(success = true)
         } else {
             PlanRefreshResult(
@@ -263,6 +267,13 @@ class DashboardViewModel @Inject constructor(
         if (engineering != _state.value.engineeringInfo || bandSummary != _state.value.bandSummary) {
             _state.value = _state.value.copy(engineeringInfo = engineering, bandSummary = bandSummary)
         }
+    }
+
+    fun markPlanHintSeen() {
+        if (!dataStore.hasSeenPlanUsageHint()) {
+            dataStore.setPlanUsageHintSeen()
+        }
+        _state.value = _state.value.copy(showPlanHint = false)
     }
 
     fun toggleCellular(connect: Boolean) {

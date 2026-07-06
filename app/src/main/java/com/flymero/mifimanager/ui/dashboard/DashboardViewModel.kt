@@ -8,6 +8,7 @@ import com.flymero.mifimanager.data.model.OrderItem
 import com.flymero.mifimanager.data.model.PlanInfo
 import com.flymero.mifimanager.data.model.StatisticsInfo
 import com.flymero.mifimanager.data.model.StatusInfo
+import com.flymero.mifimanager.data.local.DataStoreHelper
 import com.flymero.mifimanager.data.repository.MiFiRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -33,7 +34,8 @@ data class DashboardState(
     val lastReachableAtLeastOnce: Boolean = false,
     val orderList: List<OrderItem> = emptyList(),
     val isOrderLoading: Boolean = false,
-    val orderError: String? = null
+    val orderError: String? = null,
+    val dashboardCards: List<DashboardCardType> = DashboardCardType.defaultOrder
 )
 
 private data class PlanRefreshResult(
@@ -43,7 +45,8 @@ private data class PlanRefreshResult(
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val repository: MiFiRepository
+    private val repository: MiFiRepository,
+    private val dataStore: DataStoreHelper
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DashboardState())
@@ -52,10 +55,52 @@ class DashboardViewModel @Inject constructor(
     private var lastApiUptime: Long = 0
 
     init {
+        loadDashboardCards()
         startStatusPolling()
         startUptimeCounter()
         startSlowPolling()
         refreshPlanOnce()
+    }
+
+    private fun loadDashboardCards() {
+        _state.value = _state.value.copy(
+            dashboardCards = DashboardCardType.normalize(dataStore.getDashboardCardIds())
+        )
+    }
+
+    private fun saveDashboardCards(cards: List<DashboardCardType>) {
+        val normalizedCards = cards.distinct().ifEmpty { DashboardCardType.defaultOrder }
+        dataStore.setDashboardCardIds(normalizedCards.map { it.id })
+        _state.value = _state.value.copy(dashboardCards = normalizedCards)
+    }
+
+    fun moveDashboardCard(fromIndex: Int, toIndex: Int) {
+        val currentCards = _state.value.dashboardCards
+        if (fromIndex !in currentCards.indices || toIndex !in currentCards.indices || fromIndex == toIndex) return
+        val updatedCards = currentCards.toMutableList()
+        val movedCard = updatedCards.removeAt(fromIndex)
+        updatedCards.add(toIndex, movedCard)
+        saveDashboardCards(updatedCards)
+    }
+
+    fun removeDashboardCard(card: DashboardCardType) {
+        val currentCards = _state.value.dashboardCards
+        if (currentCards.size <= 1) {
+            _state.value = _state.value.copy(refreshMessage = "至少保留一张首页卡片")
+            return
+        }
+        saveDashboardCards(currentCards.filterNot { it == card })
+    }
+
+    fun addDashboardCard(card: DashboardCardType) {
+        val currentCards = _state.value.dashboardCards
+        if (card in currentCards) return
+        saveDashboardCards(currentCards + card)
+    }
+
+    fun resetDashboardCards() {
+        saveDashboardCards(DashboardCardType.defaultOrder)
+        _state.value = _state.value.copy(refreshMessage = "首页卡片已恢复默认")
     }
 
     private fun startStatusPolling() {

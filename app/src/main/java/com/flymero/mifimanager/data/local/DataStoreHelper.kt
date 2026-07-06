@@ -60,4 +60,16 @@ class DataStoreHelper @Inject constructor(
     fun setDarkMode(enabled: Boolean) {
         prefs.edit().putBoolean("dark_mode", enabled).apply()
     }
+
+    fun getDashboardCardIds(): List<String> =
+        (prefs.getString("dashboard_card_order", "") ?: "")
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
+    fun setDashboardCardIds(cardIds: List<String>) {
+        prefs.edit()
+            .putString("dashboard_card_order", cardIds.joinToString(","))
+            .apply()
+    }
 }

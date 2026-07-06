@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,14 +30,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,21 +66,32 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.flymero.mifimanager.data.model.HomepageInfo
 import com.flymero.mifimanager.data.model.OrderItem
 import com.flymero.mifimanager.data.model.PlanInfo
+import com.flymero.mifimanager.data.model.StatisticsInfo
+import com.flymero.mifimanager.data.model.StatusInfo
 import com.flymero.mifimanager.ui.components.CardTitle
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.components.SectionCard
@@ -109,6 +127,8 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
 
     var showPlanDetail by rememberSaveable { mutableStateOf(false) }
     var showPlanHint by rememberSaveable { mutableStateOf(plan != null) }
+    var isEditingCards by rememberSaveable { mutableStateOf(false) }
+    var showAddCards by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(plan != null, plan?.equipment?.devNo, plan?.packageName) {
         if (plan != null) showPlanHint = true
@@ -204,217 +224,58 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                         )
                     }
                 }
-            }
-
-            SectionCard {
-                CardTitle("设备状态")
-                val batteryIcon = when {
-                    status.batteryCharging == "1" -> Icons.Default.BatteryChargingFull
-                    batteryPercent <= 20 -> Icons.Default.BatteryAlert
-                    else -> Icons.Default.BatteryFull
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        DashboardMetricCard(
-                            title = "信号强度",
-                            primary = signalText,
-                            secondary = "${status.rssi} dBm",
-                            footnote = "$animatedSignal 格",
-                            icon = Icons.Default.SignalCellularAlt,
-                            accentColor = signalColor,
-                            modifier = Modifier.weight(1f)
-                        )
-                        DashboardMetricCard(
-                            title = "电量",
-                            primary = "$animatedBattery%",
-                            secondary = if (status.batteryCharging == "1") "充电中" else if (batteryPercent <= 20) "低电量" else "状态正常",
-                            icon = batteryIcon,
-                            accentColor = batteryColor,
-                            modifier = Modifier.weight(1f)
-                        )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (isEditingCards) {
+                        IconButton(onClick = { showAddCards = true }) {
+                            Icon(Icons.Default.Add, contentDescription = "添加首页卡片")
+                        }
+                        IconButton(onClick = viewModel::resetDashboardCards) {
+                            Icon(Icons.Default.RestartAlt, contentDescription = "恢复默认首页卡片")
+                        }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        DashboardMetricCard(
-                            title = "运营商",
-                            primary = carrierName,
-                            icon = if (carrierLogo == null) Icons.Default.Language else null,
-                            iconContent = carrierLogo?.let { logo ->
-                                {
-                                    Image(
-                                        painter = painterResource(logo),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        DashboardMetricCard(
-                            title = "在线设备",
-                            primary = "${status.wifiClientsNum} 台",
-                            icon = Icons.Default.Devices,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        DashboardMetricCard(
-                            title = "下载速率",
-                            primary = status.formattedSpeed(status.rxSpeed),
-                            icon = Icons.Default.ArrowDownward,
-                            accentColor = SpeedDownload,
-                            modifier = Modifier.weight(1f)
-                        )
-                        DashboardMetricCard(
-                            title = "上传速率",
-                            primary = status.formattedSpeed(status.txSpeed),
-                            icon = Icons.Default.ArrowUpward,
-                            accentColor = SpeedUpload,
-                            modifier = Modifier.weight(1f)
+                    IconButton(onClick = { isEditingCards = !isEditingCards }) {
+                        Icon(
+                            imageVector = if (isEditingCards) Icons.Default.Save else Icons.Default.Edit,
+                            contentDescription = if (isEditingCards) "完成编辑" else "编辑首页卡片"
                         )
                     }
                 }
             }
 
-            if (plan != null) {
-                SectionCard(
-                    onClick = {
+            DashboardCardsList(
+                cards = state.dashboardCards,
+                editMode = isEditingCards,
+                hasPlan = plan != null,
+                onMove = viewModel::moveDashboardCard,
+                onRemove = viewModel::removeDashboardCard
+            ) { card ->
+                DashboardCardContent(
+                    card = card,
+                    editMode = isEditingCards,
+                    status = status,
+                    homepage = homepage,
+                    stats = stats,
+                    plan = plan,
+                    signalText = signalText,
+                    signalColor = signalColor,
+                    batteryPercent = batteryPercent,
+                    batteryColor = batteryColor,
+                    animatedBattery = animatedBattery,
+                    animatedSignal = animatedSignal,
+                    carrierName = carrierName,
+                    carrierLogo = carrierLogo,
+                    bandSummary = state.bandSummary,
+                    localUptimeSeconds = state.localUptimeSeconds,
+                    cellularConnecting = state.cellularConnecting,
+                    routerReachable = state.routerReachable,
+                    lastReachableAtLeastOnce = state.lastReachableAtLeastOnce,
+                    showPlanHint = showPlanHint,
+                    onOpenPlan = {
                         showPlanHint = false
                         showPlanDetail = true
-                    }
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                text = plan.packageName,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "到期时间：${plan.expiretime}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "查看详情",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Icon(
-                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    LinearProgressIndicator(
-                        progress = { plan.usagePercent() / 100f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(7.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.outlineVariant
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "已用 ${plan.usedFormatted()}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "剩余 ${plan.remainFormatted()} / ${plan.totalFormatted()}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (showPlanHint) {
-                        Text(
-                            text = "点击套餐卡查看详细用量",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-
-            SectionCard {
-                CardTitle("用量统计")
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        DashboardStatCard(
-                            title = "本次下载",
-                            value = stats.formattedCurrentTraffic().first,
-                            modifier = Modifier.weight(1f)
-                        )
-                        DashboardStatCard(
-                            title = "本次上传",
-                            value = stats.formattedCurrentTraffic().second,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        DashboardStatCard(
-                            title = "累计下载",
-                            value = stats.formattedTotalTraffic().first,
-                            modifier = Modifier.weight(1f)
-                        )
-                        DashboardStatCard(
-                            title = "累计上传",
-                            value = stats.formattedTotalTraffic().second,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-
-            SectionCard {
-                CardTitle("网络连接")
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = "蜂窝网络",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = when {
-                                state.cellularConnecting -> "切换中..."
-                                !state.routerReachable && state.lastReachableAtLeastOnce -> "路由器不可达"
-                                homepage.connectDisconnect == "cellular" -> "已连接"
-                                else -> "已断开"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = state.routerReachable && homepage.connectDisconnect == "cellular",
-                        onCheckedChange = { viewModel.toggleCellular(it) },
-                        enabled = !state.cellularConnecting && state.routerReachable
-                    )
-                }
-                SectionDivider()
-                KeyValueRow(label = "频段", value = state.bandSummary)
-                SectionDivider()
-                KeyValueRow(label = "WAN IP", value = homepage.wanIp.ifEmpty { "--" })
-                SectionDivider()
-                KeyValueRow(label = "LAN IP", value = homepage.lanIp.ifEmpty { "--" })
-                SectionDivider()
-                KeyValueRow(label = "运行时间", value = formatUptime(state.localUptimeSeconds), valueColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                    },
+                    onToggleCellular = viewModel::toggleCellular
+                )
             }
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -426,6 +287,23 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
 
     var showOrderHistory by remember { mutableStateOf(false) }
     var displayCount by remember { mutableStateOf(10) }
+
+    if (showAddCards) {
+        val missingCards = DashboardCardType.defaultOrder.filterNot { it in state.dashboardCards }
+        ModalBottomSheet(
+            onDismissRequest = { showAddCards = false },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            AddDashboardCardsSheet(
+                missingCards = missingCards,
+                onAdd = { card ->
+                    viewModel.addDashboardCard(card)
+                    showAddCards = false
+                },
+                onClose = { showAddCards = false }
+            )
+        }
+    }
 
     if (showPlanDetail && plan != null) {
         ModalBottomSheet(
@@ -469,6 +347,505 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun DashboardCardsList(
+    cards: List<DashboardCardType>,
+    editMode: Boolean,
+    hasPlan: Boolean,
+    onMove: (Int, Int) -> Unit,
+    onRemove: (DashboardCardType) -> Unit,
+    content: @Composable (DashboardCardType) -> Unit
+) {
+    val visibleCards = if (editMode) {
+        cards
+    } else {
+        cards.filter { it != DashboardCardType.PlanUsage || hasPlan }
+    }
+    val itemBounds = remember { mutableStateMapOf<DashboardCardType, Rect>() }
+    var draggedCard by remember { mutableStateOf<DashboardCardType?>(null) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+    var dragStartBounds by remember { mutableStateOf<Rect?>(null) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        visibleCards.forEach { card ->
+            val isDragging = draggedCard == card
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .zIndex(if (isDragging) 1f else 0f)
+                    .graphicsLayer {
+                        if (isDragging) {
+                            translationY = dragOffsetY
+                            scaleX = 1.015f
+                            scaleY = 1.015f
+                            shadowElevation = 12f
+                        }
+                    }
+                    .onGloballyPositioned { coordinates ->
+                        itemBounds[card] = coordinates.boundsInRoot()
+                    }
+                    .then(
+                        if (editMode) {
+                            Modifier.pointerInput(card, visibleCards) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        draggedCard = card
+                                        dragOffsetY = 0f
+                                        dragStartBounds = itemBounds[card]
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOffsetY += dragAmount.y
+                                        val startBounds = dragStartBounds ?: return@detectDragGesturesAfterLongPress
+                                        val draggedCenter = Offset(
+                                            x = startBounds.center.x,
+                                            y = startBounds.center.y + dragOffsetY
+                                        )
+                                        val targetCard = visibleCards.firstOrNull { candidate ->
+                                            candidate != card && itemBounds[candidate]?.contains(draggedCenter) == true
+                                        }
+                                        if (targetCard != null) {
+                                            val fromIndex = cards.indexOf(card)
+                                            val toIndex = cards.indexOf(targetCard)
+                                            if (fromIndex >= 0 && toIndex >= 0) {
+                                                onMove(fromIndex, toIndex)
+                                            }
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        draggedCard = null
+                                        dragOffsetY = 0f
+                                        dragStartBounds = null
+                                    },
+                                    onDragCancel = {
+                                        draggedCard = null
+                                        dragOffsetY = 0f
+                                        dragStartBounds = null
+                                    }
+                                )
+                            }
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                content(card)
+                if (editMode) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.94f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.DragHandle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "长按拖动",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = { onRemove(card) },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.errorContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "隐藏${card.title}",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardCardContent(
+    card: DashboardCardType,
+    editMode: Boolean,
+    status: StatusInfo,
+    homepage: HomepageInfo,
+    stats: StatisticsInfo,
+    plan: PlanInfo?,
+    signalText: String,
+    signalColor: Color,
+    batteryPercent: Int,
+    batteryColor: Color,
+    animatedBattery: Int,
+    animatedSignal: Int,
+    carrierName: String,
+    carrierLogo: Int?,
+    bandSummary: String,
+    localUptimeSeconds: Long,
+    cellularConnecting: Boolean,
+    routerReachable: Boolean,
+    lastReachableAtLeastOnce: Boolean,
+    showPlanHint: Boolean,
+    onOpenPlan: () -> Unit,
+    onToggleCellular: (Boolean) -> Unit
+) {
+    when (card) {
+        DashboardCardType.DeviceStatus -> DeviceStatusDashboardCard(
+            status = status,
+            signalText = signalText,
+            signalColor = signalColor,
+            batteryPercent = batteryPercent,
+            batteryColor = batteryColor,
+            animatedBattery = animatedBattery,
+            animatedSignal = animatedSignal,
+            carrierName = carrierName,
+            carrierLogo = carrierLogo
+        )
+        DashboardCardType.PlanUsage -> PlanUsageDashboardCard(
+            plan = plan,
+            editMode = editMode,
+            showPlanHint = showPlanHint,
+            onOpenPlan = onOpenPlan
+        )
+        DashboardCardType.TrafficStats -> TrafficStatsDashboardCard(stats = stats)
+        DashboardCardType.NetworkConnection -> NetworkConnectionDashboardCard(
+            editMode = editMode,
+            homepage = homepage,
+            bandSummary = bandSummary,
+            localUptimeSeconds = localUptimeSeconds,
+            cellularConnecting = cellularConnecting,
+            routerReachable = routerReachable,
+            lastReachableAtLeastOnce = lastReachableAtLeastOnce,
+            onToggleCellular = onToggleCellular
+        )
+    }
+}
+
+@Composable
+private fun DeviceStatusDashboardCard(
+    status: StatusInfo,
+    signalText: String,
+    signalColor: Color,
+    batteryPercent: Int,
+    batteryColor: Color,
+    animatedBattery: Int,
+    animatedSignal: Int,
+    carrierName: String,
+    carrierLogo: Int?
+) {
+    SectionCard {
+        CardTitle("设备状态")
+        val batteryIcon = when {
+            status.batteryCharging == "1" -> Icons.Default.BatteryChargingFull
+            batteryPercent <= 20 -> Icons.Default.BatteryAlert
+            else -> Icons.Default.BatteryFull
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DashboardMetricCard(
+                    title = "信号强度",
+                    primary = signalText,
+                    secondary = "${status.rssi} dBm",
+                    footnote = "$animatedSignal 格",
+                    icon = Icons.Default.SignalCellularAlt,
+                    accentColor = signalColor,
+                    modifier = Modifier.weight(1f)
+                )
+                DashboardMetricCard(
+                    title = "电量",
+                    primary = "$animatedBattery%",
+                    secondary = if (status.batteryCharging == "1") "充电中" else if (batteryPercent <= 20) "低电量" else "状态正常",
+                    icon = batteryIcon,
+                    accentColor = batteryColor,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DashboardMetricCard(
+                    title = "运营商",
+                    primary = carrierName,
+                    icon = if (carrierLogo == null) Icons.Default.Language else null,
+                    iconContent = carrierLogo?.let { logo ->
+                        {
+                            Image(
+                                painter = painterResource(logo),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                DashboardMetricCard(
+                    title = "在线设备",
+                    primary = "${status.wifiClientsNum} 台",
+                    icon = Icons.Default.Devices,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DashboardMetricCard(
+                    title = "下载速率",
+                    primary = status.formattedSpeed(status.rxSpeed),
+                    icon = Icons.Default.ArrowDownward,
+                    accentColor = SpeedDownload,
+                    modifier = Modifier.weight(1f)
+                )
+                DashboardMetricCard(
+                    title = "上传速率",
+                    primary = status.formattedSpeed(status.txSpeed),
+                    icon = Icons.Default.ArrowUpward,
+                    accentColor = SpeedUpload,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanUsageDashboardCard(
+    plan: PlanInfo?,
+    editMode: Boolean,
+    showPlanHint: Boolean,
+    onOpenPlan: () -> Unit
+) {
+    if (plan == null) {
+        if (editMode) {
+            SectionCard {
+                CardTitle("套餐信息")
+                Text(
+                    text = "暂无套餐数据。登录页填写充值号后，这张卡片会显示剩余流量、到期时间和订单入口。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        return
+    }
+
+    SectionCard(onClick = if (editMode) null else onOpenPlan) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = plan.packageName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "到期时间：${plan.expiretime}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (!editMode) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "查看详情",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+        LinearProgressIndicator(
+            progress = { plan.usagePercent() / 100f },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(7.dp),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.outlineVariant
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "已用 ${plan.usedFormatted()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "剩余 ${plan.remainFormatted()} / ${plan.totalFormatted()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (showPlanHint && !editMode) {
+            Text(
+                text = "点击套餐卡查看详细用量",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrafficStatsDashboardCard(stats: StatisticsInfo) {
+    SectionCard {
+        CardTitle("用量统计")
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DashboardStatCard(
+                    title = "本次下载",
+                    value = stats.formattedCurrentTraffic().first,
+                    modifier = Modifier.weight(1f)
+                )
+                DashboardStatCard(
+                    title = "本次上传",
+                    value = stats.formattedCurrentTraffic().second,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DashboardStatCard(
+                    title = "累计下载",
+                    value = stats.formattedTotalTraffic().first,
+                    modifier = Modifier.weight(1f)
+                )
+                DashboardStatCard(
+                    title = "累计上传",
+                    value = stats.formattedTotalTraffic().second,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NetworkConnectionDashboardCard(
+    editMode: Boolean,
+    homepage: HomepageInfo,
+    bandSummary: String,
+    localUptimeSeconds: Long,
+    cellularConnecting: Boolean,
+    routerReachable: Boolean,
+    lastReachableAtLeastOnce: Boolean,
+    onToggleCellular: (Boolean) -> Unit
+) {
+    SectionCard {
+        CardTitle("网络连接")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "蜂窝网络",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = when {
+                        cellularConnecting -> "切换中..."
+                        !routerReachable && lastReachableAtLeastOnce -> "路由器不可达"
+                        homepage.connectDisconnect == "cellular" -> "已连接"
+                        else -> "已断开"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = routerReachable && homepage.connectDisconnect == "cellular",
+                onCheckedChange = onToggleCellular,
+                enabled = !editMode && !cellularConnecting && routerReachable
+            )
+        }
+        SectionDivider()
+        KeyValueRow(label = "频段", value = bandSummary)
+        SectionDivider()
+        KeyValueRow(label = "WAN IP", value = homepage.wanIp.ifEmpty { "--" })
+        SectionDivider()
+        KeyValueRow(label = "LAN IP", value = homepage.lanIp.ifEmpty { "--" })
+        SectionDivider()
+        KeyValueRow(label = "运行时间", value = formatUptime(localUptimeSeconds), valueColor = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun AddDashboardCardsSheet(
+    missingCards: List<DashboardCardType>,
+    onAdd: (DashboardCardType) -> Unit,
+    onClose: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = "添加首页卡片",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold
+        )
+        if (missingCards.isEmpty()) {
+            Text(
+                text = "所有卡片都已经在首页中。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            missingCards.forEach { card ->
+                OutlinedButton(
+                    onClick = { onAdd(card) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(card.title)
+                }
+            }
+        }
+        Button(
+            onClick = onClose,
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large
+        ) {
+            Text("完成")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 

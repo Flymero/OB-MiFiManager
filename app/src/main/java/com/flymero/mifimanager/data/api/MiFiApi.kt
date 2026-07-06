@@ -101,7 +101,7 @@ interface MiFiApi {
     @GET("xml_action.cgi?method=get&module=duster&file=json_device_restart")
     suspend fun restartDevice()
 
-    @GET("xml_action.cgi?Action=restore_factory")
+    @GET("xml_action.cgi?method=get&module=duster&file=json_device_restore_factory")
     suspend fun restoreFactory()
 
     @POST("xml_action.cgi?method=post&module=duster&file=json_sms_auth_sendSms")

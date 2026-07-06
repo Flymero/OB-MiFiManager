@@ -95,6 +95,14 @@ data class ApiResult(
 }
 
 data class AccountManagementInfo(
+    @SerializedName("multi_account") val multiAccount: String = "",
+    @SerializedName("router_username") val routerUsername: String = "",
+    @SerializedName("router_password") val routerPassword: String = "",
+    @SerializedName("router_user_list") val routerUserList: List<AccountUser> = emptyList()
+)
+
+data class AccountUser(
     @SerializedName("username") val username: String = "",
-    @SerializedName("password") val password: String = ""
+    @SerializedName("password") val password: String = "",
+    @SerializedName("authority") val authority: String = ""
 )

@@ -1,5 +1,12 @@
 package com.flymero.mifimanager.ui.auth
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,6 +51,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.flymero.mifimanager.ui.theme.mifiFastEffectsSpec
+import com.flymero.mifimanager.ui.theme.mifiFastSpatialSpec
 
 @Composable
 fun InternetAuthScreen(viewModel: InternetAuthViewModel = hiltViewModel()) {
@@ -185,6 +194,20 @@ private fun AuthTerminalCard(
     var showReauthConfirm by remember { mutableStateOf(false) }
 
     val isAuth = terminal.isAuthenticated()
+    val cardBorderColor by animateColorAsState(
+        targetValue = if (isAuth) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+        } else {
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+        },
+        animationSpec = mifiFastEffectsSpec(),
+        label = "auth-card-border"
+    )
+    val statusColor by animateColorAsState(
+        targetValue = if (isAuth) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+        animationSpec = mifiFastEffectsSpec(),
+        label = "auth-status-color"
+    )
 
     if (showReauthConfirm) {
         AlertDialog(
@@ -210,8 +233,7 @@ private fun AuthTerminalCard(
         else MaterialTheme.colorScheme.surfaceContainerLow,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            if (isAuth) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+            cardBorderColor
         )
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -237,17 +259,11 @@ private fun AuthTerminalCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                if (isAuth) {
+                Crossfade(targetState = isAuth, animationSpec = mifiFastEffectsSpec(), label = "auth-status-icon") { authenticated ->
                     Icon(
-                        Icons.Default.Check,
-                        contentDescription = "已认证",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "未认证",
-                        tint = MaterialTheme.colorScheme.error
+                        imageVector = if (authenticated) Icons.Default.Check else Icons.Default.Close,
+                        contentDescription = if (authenticated) "已认证" else "未认证",
+                        tint = statusColor
                     )
                 }
             }
@@ -261,78 +277,89 @@ private fun AuthTerminalCard(
                 )
             }
 
-            if (!isAuth || isVerifying) {
-                HorizontalDivider()
+            AnimatedVisibility(
+                visible = !isAuth || isVerifying,
+                enter = fadeIn(mifiFastEffectsSpec()) + expandVertically(mifiFastSpatialSpec()),
+                exit = fadeOut(mifiFastEffectsSpec()) + shrinkVertically(mifiFastSpatialSpec())
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HorizontalDivider()
 
-                if (!isAuth && !isVerifying) {
-                    Text(
-                        text = "需要认证",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-                if (isVerifying && isAuth) {
-                    Text(
-                        text = "重新认证",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                if (!smsSent) {
-                    OutlinedTextField(
-                        value = phoneNum,
-                        onValueChange = { phoneNum = it },
-                        label = { Text("手机号码") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
-                    )
-                    Button(
-                        onClick = { onSendSms(phoneNum) },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = phoneNum.length >= 11,
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Text("发送验证码")
+                    Crossfade(targetState = isVerifying && isAuth, animationSpec = mifiFastEffectsSpec(), label = "auth-form-title") { reauth ->
+                        Text(
+                            text = if (reauth) "重新认证" else "需要认证",
+                            style = if (reauth) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
+                            color = if (reauth) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            fontWeight = if (reauth) FontWeight.SemiBold else FontWeight.Normal
+                        )
                     }
-                } else {
-                    OutlinedTextField(
-                        value = verifyCode,
-                        onValueChange = { verifyCode = it },
-                        label = { Text("短信验证码") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onCancel,
-                            modifier = Modifier.weight(1f),
-                            shape = MaterialTheme.shapes.large
-                        ) { Text("取消") }
-                        Button(
-                            onClick = { onVerify(verifyCode) },
-                            modifier = Modifier.weight(1f),
-                            enabled = verifyCode.isNotEmpty(),
-                            shape = MaterialTheme.shapes.large
-                        ) { Text("验证") }
+
+                    Crossfade(targetState = smsSent, animationSpec = mifiFastEffectsSpec(), label = "auth-form-step") { sent ->
+                        if (!sent) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                OutlinedTextField(
+                                    value = phoneNum,
+                                    onValueChange = { phoneNum = it },
+                                    label = { Text("手机号码") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                                )
+                                Button(
+                                    onClick = { onSendSms(phoneNum) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = phoneNum.length >= 11,
+                                    shape = MaterialTheme.shapes.large
+                                ) {
+                                    Text("发送验证码")
+                                }
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                OutlinedTextField(
+                                    value = verifyCode,
+                                    onValueChange = { verifyCode = it },
+                                    label = { Text("短信验证码") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = onCancel,
+                                        modifier = Modifier.weight(1f),
+                                        shape = MaterialTheme.shapes.large
+                                    ) { Text("取消") }
+                                    Button(
+                                        onClick = { onVerify(verifyCode) },
+                                        modifier = Modifier.weight(1f),
+                                        enabled = verifyCode.isNotEmpty(),
+                                        shape = MaterialTheme.shapes.large
+                                    ) { Text("验证") }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            if (isAuth && !isVerifying) {
-                HorizontalDivider()
-                OutlinedButton(
-                    onClick = { showReauthConfirm = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Text("重新认证")
+            AnimatedVisibility(
+                visible = isAuth && !isVerifying,
+                enter = fadeIn(mifiFastEffectsSpec()) + expandVertically(mifiFastSpatialSpec()),
+                exit = fadeOut(mifiFastEffectsSpec()) + shrinkVertically(mifiFastSpatialSpec())
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HorizontalDivider()
+                    OutlinedButton(
+                        onClick = { showReauthConfirm = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text("重新认证")
+                    }
                 }
             }
         }

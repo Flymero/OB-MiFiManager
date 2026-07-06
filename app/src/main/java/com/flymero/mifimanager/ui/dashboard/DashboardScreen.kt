@@ -61,6 +61,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -368,6 +369,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     }
 
     if (showPlanDetail && plan != null) {
+        val canScrollPlanDetail = sheetState.currentValue == SheetValue.Expanded
         ModalBottomSheet(
             onDismissRequest = { showPlanDetail = false },
             sheetState = sheetState,
@@ -377,6 +379,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
                 plan = plan,
                 context = context,
                 isRefreshing = state.isPlanRefreshing,
+                contentScrollEnabled = canScrollPlanDetail,
                 onRefresh = viewModel::refreshPlanManually,
                 onClose = { showPlanDetail = false },
                 onShowOrders = {
@@ -1436,6 +1439,7 @@ private fun PackageDetailSheet(
     plan: PlanInfo,
     context: Context,
     isRefreshing: Boolean,
+    contentScrollEnabled: Boolean,
     onRefresh: () -> Unit,
     onClose: () -> Unit,
     onShowOrders: () -> Unit
@@ -1446,7 +1450,7 @@ private fun PackageDetailSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(rememberScrollState(), enabled = contentScrollEnabled)
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {

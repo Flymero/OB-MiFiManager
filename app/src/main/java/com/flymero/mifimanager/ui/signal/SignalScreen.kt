@@ -1,5 +1,7 @@
 package com.flymero.mifimanager.ui.signal
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,6 +35,8 @@ import com.flymero.mifimanager.ui.components.SectionDivider
 import com.flymero.mifimanager.ui.theme.SignalExcellent
 import com.flymero.mifimanager.ui.theme.AppColors
 import com.flymero.mifimanager.ui.theme.Warning
+import com.flymero.mifimanager.ui.theme.mifiFastEffectsSpec
+import com.flymero.mifimanager.ui.theme.mifiSlowSpatialSpec
 import com.flymero.mifimanager.ui.util.formatCarrierName
 
 @Composable
@@ -53,6 +57,21 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
     val qualityText = lte.qualityText(score)
     val qualityColor = if (score >= 75) SignalExcellent else Warning
     val qualityContainer = if (score >= 75) AppColors.successContainer() else AppColors.warningContainer()
+    val animatedScoreProgress by animateFloatAsState(
+        targetValue = score / 100f,
+        animationSpec = mifiSlowSpatialSpec(),
+        label = "signal-score"
+    )
+    val animatedQualityColor by animateColorAsState(
+        targetValue = qualityColor,
+        animationSpec = mifiFastEffectsSpec(),
+        label = "signal-quality-color"
+    )
+    val animatedQualityContainer by animateColorAsState(
+        targetValue = qualityContainer,
+        animationSpec = mifiFastEffectsSpec(),
+        label = "signal-quality-container"
+    )
 
     Column(
         modifier = Modifier
@@ -74,7 +93,7 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
                     text = qualityText,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = qualityColor
+                    color = animatedQualityColor
                 )
                 Text(
                     text = "综合评分：${score}/100",
@@ -82,11 +101,11 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 LinearProgressIndicator(
-                    progress = { score / 100f },
+                    progress = { animatedScoreProgress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp),
-                    color = qualityColor,
+                    color = animatedQualityColor,
                     trackColor = MaterialTheme.colorScheme.outlineVariant
                 )
             }
@@ -102,8 +121,8 @@ fun SignalScreen(viewModel: SignalViewModel = hiltViewModel()) {
                     label = "SINR",
                     value = "${lte.sinr} dB",
                     valueColor = SignalExcellent,
-                    containerColor = qualityContainer,
-                    borderColor = qualityContainer,
+                    containerColor = animatedQualityContainer,
+                    borderColor = animatedQualityContainer,
                     modifier = Modifier.weight(1f)
                 )
                 SignalMetricCard(

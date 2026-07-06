@@ -145,8 +145,20 @@ fun MiFiNavHost() {
             navController = navController,
             startDestination = startDestination,
             modifier = Modifier.padding(innerPadding),
-            enterTransition = { fadeIn(tween(220)) },
-            exitTransition = { fadeOut(tween(180)) },
+            enterTransition = {
+                if (targetState.destination.route?.substringBefore("?") == "dashboard") {
+                    fadeIn(tween(0))
+                } else {
+                    fadeIn(tween(220))
+                }
+            },
+            exitTransition = {
+                if (targetState.destination.route?.substringBefore("?") == "dashboard") {
+                    fadeOut(tween(0))
+                } else {
+                    fadeOut(tween(180))
+                }
+            },
             popEnterTransition = { fadeIn(tween(220)) },
             popExitTransition = { fadeOut(tween(180)) }
         ) {

@@ -4,6 +4,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -47,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,6 +64,9 @@ import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.components.SectionCard
 import com.flymero.mifimanager.ui.theme.ErrorLight
 import com.flymero.mifimanager.ui.theme.Success
+import com.flymero.mifimanager.ui.theme.mifiDefaultSpatialSpec
+import com.flymero.mifimanager.ui.theme.mifiFastEffectsSpec
+import com.flymero.mifimanager.ui.theme.mifiFastSpatialSpec
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,13 +158,19 @@ fun DevicesScreen(
                 horizontalArrangement = Arrangement.spacedBy(18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val pagerScrollSpec = mifiDefaultSpatialSpec<Float>()
                 tabTitles.forEachIndexed { index, title ->
                     DeviceCategoryTab(
                         title = title,
                         selected = selectedTab == index,
                         onClick = {
                             selectedTab = index
-                            scope.launch { pagerState.animateScrollToPage(index) }
+                            scope.launch {
+                                pagerState.animateScrollToPage(
+                                    page = index,
+                                    animationSpec = pagerScrollSpec
+                                )
+                            }
                         }
                     )
                 }
@@ -263,6 +275,21 @@ private fun DeviceCategoryTab(
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    val textColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = mifiFastEffectsSpec(),
+        label = "device-tab-text"
+    )
+    val indicatorColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        animationSpec = mifiFastEffectsSpec(),
+        label = "device-tab-indicator-color"
+    )
+    val indicatorScale by animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = mifiFastSpatialSpec(),
+        label = "device-tab-indicator-scale"
+    )
     Column(
         modifier = Modifier
             .clickable(onClick = onClick)
@@ -274,15 +301,16 @@ private fun DeviceCategoryTab(
             text = title,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = textColor,
             maxLines = 1
         )
         Box(
             modifier = Modifier
                 .height(3.dp)
                 .fillMaxWidth()
+                .graphicsLayer { scaleX = indicatorScale }
                 .background(
-                    color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    color = indicatorColor,
                     shape = CircleShape
                 )
         ) {

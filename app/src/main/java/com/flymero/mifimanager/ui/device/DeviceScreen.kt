@@ -6,6 +6,11 @@ import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -64,6 +69,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -82,6 +88,8 @@ import com.flymero.mifimanager.navigation.LocalGlobalSnackbar
 import com.flymero.mifimanager.ui.components.InfoRow
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.theme.LocalThemeControl
+import com.flymero.mifimanager.ui.theme.mifiFastEffectsSpec
+import com.flymero.mifimanager.ui.theme.mifiFastSpatialSpec
 import com.flymero.mifimanager.ui.util.formatCarrierName
 
 private data class NetworkModeOption(val value: String, val label: String)
@@ -252,12 +260,19 @@ fun DeviceScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 networkOptions.forEachIndexed { index, option ->
+                    val selected = option.value == wan.nwMode
+                    val optionContainer by animateColorAsState(
+                        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else Color.Transparent,
+                        animationSpec = mifiFastEffectsSpec(),
+                        label = "network-mode-option"
+                    )
                     TextButton(
                         onClick = {
                             showNetworkModeSheet = false
                             if (option.value != wan.nwMode) viewModel.setNetworkMode(option.value)
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors(containerColor = optionContainer)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -265,7 +280,7 @@ fun DeviceScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(option.label)
-                            if (option.value == wan.nwMode) {
+                            if (selected) {
                                 Text(
                                     text = "当前",
                                     color = MaterialTheme.colorScheme.primary,
@@ -446,6 +461,12 @@ private fun RouterStatusBanner(state: DeviceState) {
         !state.routerReachable -> MaterialTheme.colorScheme.errorContainer
         else -> MaterialTheme.colorScheme.surfaceVariant
     }
+    val animatedContainerColor by animateColorAsState(
+        targetValue = containerColor,
+        animationSpec = mifiFastEffectsSpec(),
+        label = "router-banner-container"
+    )
+    val showProgress = state.operationInProgress || state.isRefreshing
 
     when {
         state.operationInProgress -> {
@@ -475,7 +496,7 @@ private fun RouterStatusBanner(state: DeviceState) {
             .fillMaxWidth()
             .height(98.dp),
         shape = MaterialTheme.shapes.large,
-        color = containerColor,
+        color = animatedContainerColor,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
@@ -492,23 +513,29 @@ private fun RouterStatusBanner(state: DeviceState) {
                         .weight(1f)
                         .padding(end = 12.dp)
                 ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = detail,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Crossfade(targetState = title to detail, animationSpec = mifiFastEffectsSpec(), label = "router-banner-text") { (nextTitle, nextDetail) ->
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = nextTitle,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = nextDetail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
                 Box(
                     modifier = Modifier.size(22.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (state.operationInProgress || state.isRefreshing) {
-                        CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                    Crossfade(targetState = showProgress, animationSpec = mifiFastEffectsSpec(), label = "router-banner-spinner") { visible ->
+                        if (visible) {
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                        }
                     }
                 }
             }
@@ -517,8 +544,10 @@ private fun RouterStatusBanner(state: DeviceState) {
                     .fillMaxWidth()
                     .height(4.dp)
             ) {
-                if (state.operationInProgress || state.isRefreshing) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Crossfade(targetState = showProgress, animationSpec = mifiFastEffectsSpec(), label = "router-banner-progress") { visible ->
+                    if (visible) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
                 }
             }
         }
@@ -578,13 +607,24 @@ private fun SimManagementCard(
                 .height(20.dp),
             contentAlignment = Alignment.CenterStart
         ) {
-            Crossfade(targetState = isPlanLoading, label = "sim-plan-loading") { loading ->
+            Crossfade(targetState = isPlanLoading, animationSpec = mifiFastEffectsSpec(), label = "sim-plan-loading") { loading ->
                 Text(
                     text = if (loading) "运营商与实名信息加载中…" else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+        AnimatedVisibility(
+            visible = isPlanLoading,
+            enter = fadeIn(mifiFastEffectsSpec()) + expandVertically(mifiFastSpatialSpec()),
+            exit = fadeOut(mifiFastEffectsSpec()) + shrinkVertically(mifiFastSpatialSpec())
+        ) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+            )
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -604,7 +644,7 @@ private fun SimManagementCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Crossfade(targetState = carrierText, label = "sim-carrier-$index") { carrier ->
+                    Crossfade(targetState = carrierText, animationSpec = mifiFastEffectsSpec(), label = "sim-carrier-$index") { carrier ->
                         Text(
                             text = "${sim.simName.ifBlank { "SIM${index + 1}" }}（$carrier）",
                             style = MaterialTheme.typography.bodyMedium,
@@ -632,6 +672,7 @@ private fun SimManagementCard(
                     ) {
                         Crossfade(
                             targetState = planSim?.realnameStatusText?.takeIf { it.isNotBlank() }.orEmpty(),
+                            animationSpec = mifiFastEffectsSpec(),
                             label = "sim-realname-$index"
                         ) { realname ->
                             Text(
@@ -646,26 +687,34 @@ private fun SimManagementCard(
                     modifier = Modifier.width(76.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    when {
-                        !sim.isPresent() -> Text(
-                            text = "未插入",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        isCurrent -> Icon(
-                            Icons.Default.Check,
-                            contentDescription = "当前选择",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        sim.isBanned() -> Text(
-                            text = "已禁用",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        else -> TextButton(onClick = { onSwitchSim(sim.simId) }) {
-                            Text("切换")
+                    val actionState = when {
+                        !sim.isPresent() -> "absent"
+                        isCurrent -> "current"
+                        sim.isBanned() -> "banned"
+                        else -> "switch"
+                    }
+                    Crossfade(targetState = actionState, animationSpec = mifiFastEffectsSpec(), label = "sim-action-$index") { action ->
+                        when (action) {
+                            "absent" -> Text(
+                                text = "未插入",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            "current" -> Icon(
+                                Icons.Default.Check,
+                                contentDescription = "当前选择",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            "banned" -> Text(
+                                text = "已禁用",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            else -> TextButton(onClick = { onSwitchSim(sim.simId) }) {
+                                Text("切换")
+                            }
                         }
                     }
                 }
@@ -692,16 +741,18 @@ private fun SimManagementCard(
                 modifier = Modifier.width(76.dp),
                 contentAlignment = Alignment.Center
             ) {
-                if (simInfo.switchMode == "0") {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = "当前模式",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                } else {
-                    TextButton(onClick = { onSwitchSim("4") }) {
-                        Text("切换")
+                Crossfade(targetState = simInfo.switchMode == "0", animationSpec = mifiFastEffectsSpec(), label = "smart-sim-action") { current ->
+                    if (current) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "当前模式",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    } else {
+                        TextButton(onClick = { onSwitchSim("4") }) {
+                            Text("切换")
+                        }
                     }
                 }
             }
@@ -870,15 +921,21 @@ private fun MacBlacklistCard(
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )
-                Text(
-                    text = when {
+                Crossfade(
+                    targetState = when {
                         isSyncing -> "重连后正在同步…"
                         macFilters.isEnabled() -> "已启用"
                         else -> "未启用"
                     },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    animationSpec = mifiFastEffectsSpec(),
+                    label = "mac-filter-status"
+                ) { status ->
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             Switch(
                 checked = macFilters.isEnabled(),

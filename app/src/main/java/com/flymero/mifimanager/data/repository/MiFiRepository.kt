@@ -22,6 +22,11 @@ class MiFiRepository @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val dataStore: DataStoreHelper
 ) {
+    private companion object {
+        const val LOGIN_DIGEST_URI = "/cgi/protected.cgi"
+        const val XML_ACTION_DIGEST_URI = "/cgi/xml_action.cgi"
+    }
+
     private val gson = Gson()
 
     suspend fun login(username: String, password: String): Boolean = withContext(Dispatchers.IO) {
@@ -46,16 +51,20 @@ class MiFiRepository @Inject constructor(
             val cnonce = generateCnonce()
 
             val ha1 = md5("$username:$realm:$password")
-            val ha2 = md5("GET:/cgi/protected.cgi")
+            val ha2 = md5("GET:$LOGIN_DIGEST_URI")
             val response = md5("$ha1:$nonce:$nc:$cnonce:$qop:$ha2")
 
             val loginUrl = "http://192.168.1.1/login.cgi?Action=Digest" +
                 "&username=$username&realm=$realm&nonce=$nonce" +
-                "&response=$response&qop=$qop&cnonce=$cnonce&temp=marvell"
+                "&response=$response&qop=$qop&cnonce=$cnonce&temp=marvell" +
+                "&_=${System.currentTimeMillis()}"
 
+            val authCnonce = generateCnonce()
+            val authHa2 = md5("GET:$XML_ACTION_DIGEST_URI")
+            val authResponse = md5("$ha1:$nonce:$nc:$authCnonce:$qop:$authHa2")
             val authValue = "Digest username=\"$username\", realm=\"$realm\", " +
-                "nonce=\"$nonce\", uri=\"/cgi/protected.cgi\", response=\"$response\", " +
-                "qop=$qop, nc=$nc, cnonce=\"$cnonce\""
+                "nonce=\"$nonce\", uri=\"$XML_ACTION_DIGEST_URI\", response=\"$authResponse\", " +
+                "qop=$qop, nc=$nc, cnonce=\"$authCnonce\""
 
             val loginRequest = Request.Builder()
                 .url(loginUrl)
@@ -70,7 +79,7 @@ class MiFiRepository @Inject constructor(
             val success = loginResponse.code == 200
             if (success) {
                 digestAuthInterceptor.updateCredentials(username, password)
-                digestAuthInterceptor.updateNonce(realm, nonce, qop)
+                digestAuthInterceptor.updateNonce(realm, nonce, qop, nextNonceCount = 2)
             }
             success
         } catch (e: Exception) {
@@ -216,7 +225,7 @@ class MiFiRepository @Inject constructor(
         }
 
     suspend fun clearTrafficStats(): Result<ApiResult> =
-        runCatching { api.setStatistics(jsonBody(mapOf("clear" to "1"))) }
+        runCatching { api.setStatistics(jsonBody(mapOf("reset" to "1"))) }
 
     suspend fun setMacBlacklistEnabled(currentInfo: WlanMacFiltersInfo, enabled: Boolean): Result<ApiResult> =
         setWlanMacFilters(
@@ -420,7 +429,11 @@ class MiFiRepository @Inject constructor(
                 isDefault = current.isDefault()
             )
         }
-        api.setWan(jsonBody(linkedMapOf("profile_list" to profiles)))
+        api.setWan(jsonBody(linkedMapOf(
+            "auto_apn" to if (selected.profileName == "PDN1") "1" else "0",
+            "auto_apn_action" to "1",
+            "profile_list" to profiles
+        )))
     }
 
     suspend fun deleteApnProfile(profileName: String): Result<ApiResult> =

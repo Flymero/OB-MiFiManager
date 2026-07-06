@@ -1,5 +1,13 @@
 package com.flymero.mifimanager.ui.wifi
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -17,6 +26,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,6 +36,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -45,6 +56,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -55,6 +67,8 @@ import com.flymero.mifimanager.ui.components.CardTitle
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.components.SectionCard
 import com.flymero.mifimanager.ui.components.SectionDivider
+import com.flymero.mifimanager.ui.theme.mifiFastEffectsSpec
+import com.flymero.mifimanager.ui.theme.mifiFastSpatialSpec
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -212,13 +226,7 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                         modifier = Modifier.align(Alignment.End),
                         shape = CircleShape
                     ) {
-                        if (state.isSaving) {
-                            CircularProgressIndicator(
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                        }
-                        Text("保存设置")
+                        SavingButtonContent(isSaving = state.isSaving, text = "保存设置")
                     }
                 }
             }
@@ -244,19 +252,25 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                     }
                     Switch(checked = autoChannel, onCheckedChange = { autoChannel = it })
                 }
-                if (!autoChannel) {
-                    SectionDivider()
-                    ChannelSelector(
-                        selectedChannel = selectedChannel,
-                        firstChannel = state.wlanInfo.firstChannel.toIntOrNull() ?: 1,
-                        lastChannel = state.wlanInfo.lastChannel.toIntOrNull() ?: 13,
-                        onChannelSelected = { selectedChannel = it }
-                    )
-                    SectionDivider()
-                    BandwidthSelector(
-                        selectedBandwidth = selectedBandwidth,
-                        onBandwidthSelected = { selectedBandwidth = it }
-                    )
+                AnimatedVisibility(
+                    visible = !autoChannel,
+                    enter = fadeIn(mifiFastEffectsSpec()) + expandVertically(mifiFastSpatialSpec()),
+                    exit = fadeOut(mifiFastEffectsSpec()) + shrinkVertically(mifiFastSpatialSpec())
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SectionDivider()
+                        ChannelSelector(
+                            selectedChannel = selectedChannel,
+                            firstChannel = state.wlanInfo.firstChannel.toIntOrNull() ?: 1,
+                            lastChannel = state.wlanInfo.lastChannel.toIntOrNull() ?: 13,
+                            onChannelSelected = { selectedChannel = it }
+                        )
+                        SectionDivider()
+                        BandwidthSelector(
+                            selectedBandwidth = selectedBandwidth,
+                            onBandwidthSelected = { selectedBandwidth = it }
+                        )
+                    }
                 }
                 SectionDivider()
                 OutlinedTextField(
@@ -300,7 +314,7 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                     modifier = Modifier.align(Alignment.End),
                     shape = CircleShape
                 ) {
-                    Text("保存高级设置")
+                    SavingButtonContent(isSaving = state.isSaving, text = "保存高级设置")
                 }
             }
 
@@ -331,18 +345,24 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                         }
                     )
                 }
-                if (autoOffEnabled) {
-                    SectionDivider()
-                    OutlinedTextField(
-                        value = autoOffMinutes,
-                        onValueChange = { autoOffMinutes = it.filter(Char::isDigit).take(2) },
-                        label = { Text("关闭前等待时间（分钟）") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        supportingText = { Text(autoOffError ?: "支持 10-60 分钟") },
-                        isError = autoOffError != null,
-                        shape = MaterialTheme.shapes.large
-                    )
+                AnimatedVisibility(
+                    visible = autoOffEnabled,
+                    enter = fadeIn(mifiFastEffectsSpec()) + expandVertically(mifiFastSpatialSpec()),
+                    exit = fadeOut(mifiFastEffectsSpec()) + shrinkVertically(mifiFastSpatialSpec())
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SectionDivider()
+                        OutlinedTextField(
+                            value = autoOffMinutes,
+                            onValueChange = { autoOffMinutes = it.filter(Char::isDigit).take(2) },
+                            label = { Text("关闭前等待时间（分钟）") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = { Text(autoOffError ?: "支持 10-60 分钟") },
+                            isError = autoOffError != null,
+                            shape = MaterialTheme.shapes.large
+                        )
+                    }
                 }
                 Button(
                     onClick = { viewModel.saveWifiAutoOff(autoOffEnabled, autoOffMinutes) },
@@ -350,7 +370,7 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                     modifier = Modifier.align(Alignment.End),
                     shape = CircleShape
                 ) {
-                    Text("保存定时设置")
+                    SavingButtonContent(isSaving = state.isSaving, text = "保存定时设置")
                 }
             }
 
@@ -390,12 +410,21 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 securityModes.forEachIndexed { index, option ->
+                    val selected = option.value == selectedMode
+                    val optionContainer by animateColorAsState(
+                        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else Color.Transparent,
+                        animationSpec = mifiFastEffectsSpec(),
+                        label = "security-option-container"
+                    )
                     TextButton(
                         onClick = {
                             showSecurityModeSheet = false
                             selectedMode = option.value
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateContentSize(mifiFastSpatialSpec()),
+                        colors = ButtonDefaults.textButtonColors(containerColor = optionContainer)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -424,7 +453,7 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                                     )
                                 }
                             }
-                            if (option.value == selectedMode) {
+                            if (selected) {
                                 Text(
                                     text = "当前",
                                     color = MaterialTheme.colorScheme.primary,
@@ -479,7 +508,9 @@ private fun WpsCard(
             modifier = Modifier.fillMaxWidth(),
             shape = CircleShape
         ) {
-            Text("开始一键配对")
+            Crossfade(targetState = wpsInfo.isMatching(), animationSpec = mifiFastEffectsSpec(), label = "wps-pbc") { matching ->
+                Text(if (matching) "正在配对..." else "开始一键配对")
+            }
         }
         OutlinedTextField(
             value = wpsPin,
@@ -499,15 +530,46 @@ private fun WpsCard(
         ) {
             Text("使用 PIN 配对")
         }
-        if (wpsInfo.isMatching()) {
-            Button(
-                onClick = onCancel,
-                enabled = !isSaving,
-                modifier = Modifier.fillMaxWidth(),
-                shape = CircleShape
-            ) {
-                Text("取消配对")
+        AnimatedVisibility(
+            visible = wpsInfo.isMatching(),
+            enter = fadeIn(mifiFastEffectsSpec()) + expandVertically(mifiFastSpatialSpec()),
+            exit = fadeOut(mifiFastEffectsSpec()) + shrinkVertically(mifiFastSpatialSpec())
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text(
+                    text = "请在设备完成 WPS 配对前保持本页打开。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(
+                    onClick = onCancel,
+                    enabled = !isSaving,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = CircleShape
+                ) {
+                    Text("取消配对")
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun SavingButtonContent(isSaving: Boolean, text: String) {
+    Crossfade(targetState = isSaving, animationSpec = mifiFastEffectsSpec(), label = "wifi-saving-button") { saving ->
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (saving) {
+                CircularProgressIndicator(
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(16.dp),
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+            Text(if (saving) "保存中..." else text)
         }
     }
 }

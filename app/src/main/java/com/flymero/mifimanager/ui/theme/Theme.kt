@@ -1,7 +1,9 @@
 package com.flymero.mifimanager.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -62,6 +64,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 fun MiFiManagerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
@@ -71,6 +74,7 @@ fun MiFiManagerTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        motionScheme = MotionScheme.expressive(),
         typography = Typography,
         content = content
     )

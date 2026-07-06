@@ -1,9 +1,12 @@
 package com.flymero.mifimanager.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,11 +41,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.flymero.mifimanager.ui.theme.AppColors
+import com.flymero.mifimanager.ui.theme.mifiFastEffectsSpec
+import com.flymero.mifimanager.ui.theme.mifiFastSpatialSpec
 
 @Composable
 fun SectionCard(
@@ -51,15 +57,7 @@ fun SectionCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
-        modifier = modifier.then(
-            if (onClick != null) {
-                Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClick
-                )
-            } else Modifier
-        ),
+        modifier = modifier.pressable(onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = MaterialTheme.shapes.extraLarge,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
@@ -95,6 +93,7 @@ fun KeyValueRow(
     value: String,
     modifier: Modifier = Modifier,
     showChevron: Boolean = false,
+    chevronRotation: Float = 0f,
     valueColor: Color = MaterialTheme.colorScheme.onSurface,
     onClick: (() -> Unit)? = null,
     onCopy: (() -> Unit)? = null,
@@ -152,7 +151,9 @@ fun KeyValueRow(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(20.dp)
+                        modifier = Modifier
+                            .width(20.dp)
+                            .graphicsLayer { rotationZ = chevronRotation }
                     )
                 }
             }
@@ -299,17 +300,46 @@ fun DeviceListItem(
     extraInfo: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val containerColor by animateColorAsState(
+        targetValue = if (isBlocked) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
+        animationSpec = mifiFastEffectsSpec(),
+        label = "device-item-container"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (isBlocked) {
+            MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
+        } else {
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+        },
+        animationSpec = mifiFastEffectsSpec(),
+        label = "device-item-border"
+    )
+    val avatarColor by animateColorAsState(
+        targetValue = if (isBlocked) {
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
+        } else {
+            AppColors.successContainer().copy(alpha = 0.7f)
+        },
+        animationSpec = mifiFastEffectsSpec(),
+        label = "device-item-avatar"
+    )
+    val avatarTextColor by animateColorAsState(
+        targetValue = if (isBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        animationSpec = mifiFastEffectsSpec(),
+        label = "device-item-avatar-text"
+    )
+    val animatedStatusColor by animateColorAsState(
+        targetValue = statusColor,
+        animationSpec = mifiFastEffectsSpec(),
+        label = "device-item-status"
+    )
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            .pressable(onClick),
         shape = MaterialTheme.shapes.large,
-        color = if (isBlocked) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
-        border = BorderStroke(
-            1.dp,
-            if (isBlocked) MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
-            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
-        )
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Row(
             modifier = Modifier
@@ -321,15 +351,12 @@ fun DeviceListItem(
             Box(
                 modifier = Modifier
                     .size(44.dp)
-                    .background(
-                        if (isBlocked) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f) else AppColors.successContainer().copy(alpha = 0.7f),
-                        CircleShape
-                    ),
+                    .background(avatarColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = name.take(1).uppercase(),
-                    color = if (isBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    color = avatarTextColor,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleSmall
                 )
@@ -367,7 +394,7 @@ fun DeviceListItem(
             Text(
                 text = statusText,
                 style = MaterialTheme.typography.labelMedium,
-                color = statusColor,
+                color = animatedStatusColor,
                 fontWeight = FontWeight.SemiBold
             )
             if (menuItems.isNotEmpty()) {
@@ -401,4 +428,26 @@ fun DeviceListItem(
 @Composable
 fun SectionDivider() {
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+}
+
+@Composable
+private fun Modifier.pressable(onClick: (() -> Unit)?): Modifier {
+    if (onClick == null) return this
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.985f else 1f,
+        animationSpec = mifiFastSpatialSpec(),
+        label = "pressable-scale"
+    )
+    return this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick
+        )
 }

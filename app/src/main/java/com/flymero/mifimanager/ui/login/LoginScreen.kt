@@ -1,5 +1,13 @@
 package com.flymero.mifimanager.ui.login
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +52,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.flymero.mifimanager.ui.theme.mifiFastEffectsSpec
+import com.flymero.mifimanager.ui.theme.mifiFastSpatialSpec
 import com.flymero.mifimanager.ui.theme.LocalThemeControl
 
 @Composable
@@ -60,6 +70,9 @@ fun LoginScreen(
     var rememberMe by remember { mutableStateOf(false) }
     val passwordFocus = remember { FocusRequester() }
     val rechargeNoFocus = remember { FocusRequester() }
+    val entranceState = remember {
+        MutableTransitionState(false).apply { targetState = true }
+    }
 
     LaunchedEffect(state.savedUsername, state.savedRechargeNo) {
         if (state.savedUsername.isNotEmpty()) {
@@ -105,100 +118,117 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Router,
-                contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            LoginEntrance(visibleState = entranceState, delayMillis = 0) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Router,
+                        contentDescription = null,
+                        modifier = Modifier.size(80.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
 
-            Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = "MiFi Manager",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+                    Text(
+                        text = "MiFi Manager",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
 
-            Text(
-                text = "随身WiFi管理工具",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                    Text(
+                        text = "随身WiFi管理工具",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text("用户名") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() })
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("密码") },
-                modifier = Modifier.fillMaxWidth().focusRequester(passwordFocus),
-                singleLine = true,
-                visualTransformation = if (passwordVisible) VisualTransformation.None
-                    else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(onNext = { rechargeNoFocus.requestFocus() }),
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) Icons.Default.Visibility
-                                else Icons.Default.VisibilityOff,
-                            contentDescription = null
-                        )
-                    }
-                }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = rechargeNo,
-                onValueChange = { rechargeNo = it },
-                label = { Text("充值号（用于套餐查询）") },
-                modifier = Modifier.fillMaxWidth().focusRequester(rechargeNoFocus),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = {
-                    if (username.isNotEmpty() && password.isNotEmpty()) {
-                        viewModel.login(username, password, rechargeNo, rememberMe)
-                    }
-                })
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(
-                    checked = rememberMe,
-                    onCheckedChange = { rememberMe = it }
-                )
-                Text(
-                    text = "记住密码",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            LoginEntrance(visibleState = entranceState, delayMillis = 80) {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("用户名") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() })
                 )
             }
 
-            if (state.error != null) {
-                Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LoginEntrance(visibleState = entranceState, delayMillis = 130) {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("密码") },
+                    modifier = Modifier.fillMaxWidth().focusRequester(passwordFocus),
+                    singleLine = true,
+                    visualTransformation = if (passwordVisible) VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { rechargeNoFocus.requestFocus() }),
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Crossfade(targetState = passwordVisible, animationSpec = mifiFastEffectsSpec(), label = "password-icon") { visible ->
+                                Icon(
+                                    imageVector = if (visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = null
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LoginEntrance(visibleState = entranceState, delayMillis = 180) {
+                OutlinedTextField(
+                    value = rechargeNo,
+                    onValueChange = { rechargeNo = it },
+                    label = { Text("充值号（用于套餐查询）") },
+                    modifier = Modifier.fillMaxWidth().focusRequester(rechargeNoFocus),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        if (username.isNotEmpty() && password.isNotEmpty()) {
+                            viewModel.login(username, password, rechargeNo, rememberMe)
+                        }
+                    })
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LoginEntrance(visibleState = entranceState, delayMillis = 230) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = rememberMe,
+                        onCheckedChange = { rememberMe = it }
+                    )
+                    Text(
+                        text = "记住密码",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = state.error != null,
+                enter = fadeIn(mifiFastEffectsSpec()) + slideInVertically(mifiFastSpatialSpec()) { -it / 3 },
+                exit = fadeOut(mifiFastEffectsSpec()) + slideOutVertically(mifiFastSpatialSpec()) { -it / 3 }
+            ) {
                 Text(
-                    text = state.error!!,
+                    text = state.error.orEmpty(),
+                    modifier = Modifier.padding(top = 8.dp),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -214,15 +244,32 @@ fun LoginScreen(
                 shape = MaterialTheme.shapes.large,
                 enabled = !state.isLoading && username.isNotEmpty() && password.isNotEmpty()
             ) {
-                if (state.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("登录", style = MaterialTheme.typography.titleMedium)
+                Crossfade(targetState = state.isLoading, animationSpec = mifiFastEffectsSpec(), label = "login-button") { loading ->
+                    if (loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text("登录", style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun LoginEntrance(
+    visibleState: MutableTransitionState<Boolean>,
+    delayMillis: Int,
+    content: @Composable () -> Unit
+) {
+    AnimatedVisibility(
+        visibleState = visibleState,
+        enter = fadeIn(tween(durationMillis = 260, delayMillis = delayMillis)) +
+            slideInVertically(tween(durationMillis = 260, delayMillis = delayMillis)) { it / 4 },
+        exit = fadeOut(tween(120)),
+        content = { content() }
+    )
 }

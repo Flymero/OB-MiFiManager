@@ -35,13 +35,32 @@ data class DashboardState(
     val orderList: List<OrderItem> = emptyList(),
     val isOrderLoading: Boolean = false,
     val orderError: String? = null,
+    val speedSamples: List<SpeedSample> = emptyList(),
     val dashboardCards: List<DashboardCardType> = DashboardCardType.defaultOrder
 )
+
+data class SpeedSample(
+    val timestampMillis: Long,
+    val rxBytesPerSec: Long,
+    val txBytesPerSec: Long
+) {
+    val totalBytesPerSec: Long get() = rxBytesPerSec + txBytesPerSec
+}
 
 private data class PlanRefreshResult(
     val success: Boolean,
     val message: String? = null
 )
+
+private const val MAX_SPEED_SAMPLES = 30
+
+private fun StatusInfo.toSpeedSample(): SpeedSample {
+    return SpeedSample(
+        timestampMillis = System.currentTimeMillis(),
+        rxBytesPerSec = rxSpeed.toLongOrNull() ?: 0L,
+        txBytesPerSec = txSpeed.toLongOrNull() ?: 0L
+    )
+}
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
@@ -152,9 +171,21 @@ class DashboardViewModel @Inject constructor(
         val current = _state.value
         val newReachable = statusResult.isSuccess
         val newError = statusResult.exceptionOrNull()?.message
-        if (current.statusInfo != status || current.isLoading || current.routerReachable != newReachable || current.error != newError) {
+        val speedSamples = if (statusResult.isSuccess) {
+            (current.speedSamples + status.toSpeedSample()).takeLast(MAX_SPEED_SAMPLES)
+        } else {
+            current.speedSamples
+        }
+        if (
+            current.statusInfo != status ||
+            current.speedSamples != speedSamples ||
+            current.isLoading ||
+            current.routerReachable != newReachable ||
+            current.error != newError
+        ) {
             _state.value = current.copy(
                 statusInfo = status,
+                speedSamples = speedSamples,
                 isLoading = false,
                 error = newError,
                 routerReachable = newReachable,

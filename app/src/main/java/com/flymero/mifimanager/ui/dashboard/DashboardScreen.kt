@@ -10,6 +10,7 @@ import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -82,8 +83,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -120,6 +126,7 @@ import com.flymero.mifimanager.ui.theme.Warning
 import com.flymero.mifimanager.ui.util.carrierLogoRes
 import com.flymero.mifimanager.ui.util.formatCarrierName
 import kotlin.math.ceil
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 private data class DashboardDragOverlay(
@@ -213,6 +220,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
             status = status,
             homepage = homepage,
             stats = stats,
+            speedSamples = state.speedSamples,
             plan = plan,
             signalText = signalText,
             signalColor = signalColor,
@@ -351,7 +359,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     var displayCount by remember { mutableStateOf(10) }
 
     if (showAddCards) {
-        val missingCards = DashboardCardType.defaultOrder.filterNot { it in state.dashboardCards }
+        val missingCards = DashboardCardType.availableCards.filterNot { it in state.dashboardCards }
         ModalBottomSheet(
             onDismissRequest = { showAddCards = false },
             containerColor = MaterialTheme.colorScheme.surface
@@ -787,6 +795,7 @@ private fun DashboardCardContent(
     status: StatusInfo,
     homepage: HomepageInfo,
     stats: StatisticsInfo,
+    speedSamples: List<SpeedSample>,
     plan: PlanInfo?,
     signalText: String,
     signalColor: Color,
@@ -816,6 +825,10 @@ private fun DashboardCardContent(
             animatedSignal = animatedSignal,
             carrierName = carrierName,
             carrierLogo = carrierLogo
+        )
+        DashboardCardType.NetworkSpeed -> NetworkSpeedDashboardCard(
+            status = status,
+            speedSamples = speedSamples
         )
         DashboardCardType.PlanUsage -> PlanUsageDashboardCard(
             plan = plan,
@@ -916,6 +929,174 @@ private fun DeviceStatusDashboardCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun NetworkSpeedDashboardCard(
+    status: StatusInfo,
+    speedSamples: List<SpeedSample>
+) {
+    val currentTotalSpeed = (status.rxSpeed.toLongOrNull() ?: 0L) + (status.txSpeed.toLongOrNull() ?: 0L)
+    SectionCard {
+        CardTitle(
+            title = "网络速度",
+            trailing = {
+                Text(
+                    text = "总 ${formatSpeedValue(currentTotalSpeed)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        )
+        SpeedLineChart(
+            samples = speedSamples,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            DashboardStatCard(
+                title = "下载",
+                value = status.formattedSpeed(status.rxSpeed),
+                modifier = Modifier.weight(1f)
+            )
+            DashboardStatCard(
+                title = "上传",
+                value = status.formattedSpeed(status.txSpeed),
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpeedLineChart(
+    samples: List<SpeedSample>,
+    modifier: Modifier = Modifier
+) {
+    val downloadColor = SpeedDownload
+    val uploadColor = SpeedUpload
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+    val baselineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+    val displaySamples = remember(samples) {
+        when {
+            samples.isEmpty() -> listOf(
+                SpeedSample(0L, 0L, 0L),
+                SpeedSample(1L, 0L, 0L)
+            )
+            samples.size == 1 -> listOf(
+                SpeedSample(samples.first().timestampMillis - 1000L, 0L, 0L),
+                samples.first()
+            )
+            else -> samples
+        }
+    }
+
+    Canvas(modifier = modifier) {
+        val maxSpeed = max(
+            1L,
+            displaySamples.maxOf { max(it.rxBytesPerSec, it.txBytesPerSec) }
+        ).toFloat()
+        val topPadding = 8.dp.toPx()
+        val bottomPadding = 14.dp.toPx()
+        val chartHeight = size.height - topPadding - bottomPadding
+        val pointCount = displaySamples.lastIndex.coerceAtLeast(1)
+
+        repeat(3) { index ->
+            val y = topPadding + chartHeight * index / 2f
+            drawLine(
+                color = gridColor,
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 1.dp.toPx()
+            )
+        }
+
+        fun pointFor(index: Int, value: Long): Offset {
+            val x = size.width * index / pointCount
+            val ratio = (value / maxSpeed).coerceIn(0f, 1f)
+            val y = topPadding + chartHeight * (1f - ratio)
+            return Offset(x, y)
+        }
+
+        val downloadPoints = displaySamples.mapIndexed { index, sample ->
+            pointFor(index, sample.rxBytesPerSec)
+        }
+        val uploadPoints = displaySamples.mapIndexed { index, sample ->
+            pointFor(index, sample.txBytesPerSec)
+        }
+        val downloadPath = buildSmoothPath(downloadPoints)
+        val uploadPath = buildSmoothPath(uploadPoints)
+
+        if (downloadPoints.isNotEmpty()) {
+            val fillPath = Path().apply {
+                addPath(downloadPath)
+                lineTo(downloadPoints.last().x, size.height)
+                lineTo(downloadPoints.first().x, size.height)
+                close()
+            }
+            drawPath(
+                path = fillPath,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        downloadColor.copy(alpha = 0.18f),
+                        downloadColor.copy(alpha = 0.02f)
+                    )
+                )
+            )
+        }
+
+        drawPath(
+            path = downloadPath,
+            color = downloadColor,
+            style = Stroke(
+                width = 2.5.dp.toPx(),
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+        drawPath(
+            path = uploadPath,
+            color = uploadColor,
+            style = Stroke(
+                width = 2.5.dp.toPx(),
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+        drawLine(
+            color = baselineColor,
+            start = Offset(0f, size.height - bottomPadding),
+            end = Offset(size.width, size.height - bottomPadding),
+            strokeWidth = 1.dp.toPx()
+        )
+    }
+}
+
+private fun buildSmoothPath(points: List<Offset>): Path {
+    val path = Path()
+    if (points.isEmpty()) return path
+
+    path.moveTo(points.first().x, points.first().y)
+    if (points.size == 1) return path
+
+    for (index in 1 until points.lastIndex) {
+        val current = points[index]
+        val next = points[index + 1]
+        val midX = (current.x + next.x) / 2f
+        val midY = (current.y + next.y) / 2f
+        path.quadraticTo(current.x, current.y, midX, midY)
+    }
+    path.lineTo(points.last().x, points.last().y)
+    return path
+}
+
+private fun formatSpeedValue(bytesPerSec: Long): String {
+    return when {
+        bytesPerSec >= 1048576L -> "%.1f MB/s".format(bytesPerSec / 1048576.0)
+        bytesPerSec >= 1024L -> "%.1f KB/s".format(bytesPerSec / 1024.0)
+        else -> "$bytesPerSec B/s"
     }
 }
 

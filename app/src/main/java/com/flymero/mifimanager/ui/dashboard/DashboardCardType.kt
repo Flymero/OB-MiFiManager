@@ -2,11 +2,14 @@ package com.flymero.mifimanager.ui.dashboard
 
 enum class DashboardCardType(val id: String, val title: String) {
     DeviceStatus("device_status", "设备状态"),
+    NetworkSpeed("network_speed", "网络速度"),
     PlanUsage("plan_usage", "套餐信息"),
     TrafficStats("traffic_stats", "用量统计"),
     NetworkConnection("network_connection", "网络连接");
 
     companion object {
+        val availableCards = entries.toList()
+
         val defaultOrder = listOf(
             DeviceStatus,
             PlanUsage,

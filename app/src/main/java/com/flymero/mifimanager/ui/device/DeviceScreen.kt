@@ -73,6 +73,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.flymero.mifimanager.data.model.DhcpInfo
 import com.flymero.mifimanager.data.model.HomepageInfo
 import com.flymero.mifimanager.data.model.PlanEquipment
+import com.flymero.mifimanager.data.model.PlanSimCard
 import com.flymero.mifimanager.data.model.SimCard
 import com.flymero.mifimanager.data.model.SimInfo
 import com.flymero.mifimanager.data.model.WanInfo
@@ -189,6 +190,7 @@ fun DeviceScreen(
             SimManagementCard(
                 simInfo = simInfo,
                 planEquipment = planEquipment,
+                homepageNetworkName = homepage.networkName,
                 isPlanLoading = state.isPlanLoading,
                 onSwitchSim = viewModel::switchSim
             )
@@ -564,6 +566,7 @@ private fun DeviceInfoCard(
 private fun SimManagementCard(
     simInfo: SimInfo,
     planEquipment: PlanEquipment?,
+    homepageNetworkName: String,
     isPlanLoading: Boolean,
     onSwitchSim: (String) -> Unit
 ) {
@@ -586,9 +589,15 @@ private fun SimManagementCard(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         simInfo.simList.forEachIndexed { index, sim ->
-            val planSim = planEquipment?.cardList?.find { it.iccid == sim.simIccid }
+            val planSim = findPlanSimCard(simInfo, sim, planEquipment)
             val isCurrent = isCurrentSim(simInfo, sim)
-            val carrierText = formatCarrierName(planSim?.operatorText?.takeIf { it.isNotBlank() } ?: sim.carrierName())
+            val carrierText = simCarrierText(
+                sim = sim,
+                planSim = planSim,
+                isPlanLoading = isPlanLoading,
+                networkCarrierName = homepageNetworkName,
+                useNetworkCarrierFallback = isNetworkCarrierFallbackSim(simInfo, sim)
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -635,7 +644,7 @@ private fun SimManagementCard(
                 }
                 Box(
                     modifier = Modifier.width(76.dp),
-                    contentAlignment = Alignment.CenterEnd
+                    contentAlignment = Alignment.Center
                 ) {
                     when {
                         !sim.isPresent() -> Text(
@@ -681,7 +690,7 @@ private fun SimManagementCard(
             )
             Box(
                 modifier = Modifier.width(76.dp),
-                contentAlignment = Alignment.CenterEnd
+                contentAlignment = Alignment.Center
             ) {
                 if (simInfo.switchMode == "0") {
                     Icon(
@@ -1090,6 +1099,71 @@ private val MAC_ADDRESS_REGEX = Regex("^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$")
 
 private fun isValidMacAddress(value: String): Boolean =
     MAC_ADDRESS_REGEX.matches(value.trim())
+
+private fun findPlanSimCard(
+    simInfo: SimInfo,
+    sim: SimCard,
+    planEquipment: PlanEquipment?
+): PlanSimCard? {
+    val iccidCandidates = buildList {
+        add(sim.simIccid)
+        if (sim.simId == simInfo.currentSimId || sim.simId == simInfo.soleSimId) {
+            add(simInfo.virtualIccid)
+        }
+    }.map(::normalizeIccid)
+        .filter { it.isNotEmpty() }
+        .distinct()
+
+    if (iccidCandidates.isEmpty()) return null
+
+    return planEquipment?.cardList?.firstOrNull { planSim ->
+        val planIccid = normalizeIccid(planSim.iccid)
+        iccidCandidates.any { candidate -> candidate.matchesIccid(planIccid) }
+    }
+}
+
+private fun simCarrierText(
+    sim: SimCard,
+    planSim: PlanSimCard?,
+    isPlanLoading: Boolean,
+    networkCarrierName: String,
+    useNetworkCarrierFallback: Boolean
+): String {
+    if (!sim.isPresent()) return "未插入"
+
+    val planCarrier = formatCarrierName(planSim?.operatorText.orEmpty())
+    if (planCarrier.isNotBlank()) return planCarrier
+
+    val networkCarrier = if (useNetworkCarrierFallback) {
+        formatCarrierName(networkCarrierName)
+    } else {
+        ""
+    }
+    if (networkCarrier.isNotBlank()) return networkCarrier
+
+    if (isPlanLoading && planSim == null) return "识别中"
+
+    return "未知运营商"
+}
+
+private fun normalizeIccid(value: String): String =
+    value.filter { it.isDigit() }
+
+private fun String.matchesIccid(other: String): Boolean {
+    if (isEmpty() || other.isEmpty()) return false
+    if (this == other) return true
+
+    val shorterLength = minOf(length, other.length)
+    return shorterLength >= 12 && (endsWith(other) || other.endsWith(this))
+}
+
+private fun isNetworkCarrierFallbackSim(
+    simInfo: SimInfo,
+    sim: SimCard
+): Boolean {
+    if (!sim.isPresent()) return false
+    return sim.simId == simInfo.currentSimId || sim.simId == simInfo.soleSimId
+}
 
 private fun isCurrentSim(
     simInfo: SimInfo,

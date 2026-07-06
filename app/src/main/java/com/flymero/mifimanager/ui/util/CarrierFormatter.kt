@@ -12,9 +12,18 @@ enum class CarrierType {
 fun carrierTypeOf(value: String): CarrierType? {
     val text = value.trim()
     return when {
-        text.contains("移动", ignoreCase = true) || text.contains("cmcc", ignoreCase = true) -> CarrierType.ChinaMobile
-        text.contains("联通", ignoreCase = true) || text.contains("unicom", ignoreCase = true) -> CarrierType.ChinaUnicom
-        text.contains("电信", ignoreCase = true) || text.contains("telecom", ignoreCase = true) -> CarrierType.ChinaTelecom
+        text.contains("移动", ignoreCase = true) ||
+            text.contains("cmcc", ignoreCase = true) ||
+            text.contains("chn mobile", ignoreCase = true) ||
+            text.contains("china mobile", ignoreCase = true) -> CarrierType.ChinaMobile
+        text.contains("联通", ignoreCase = true) ||
+            text.contains("unicom", ignoreCase = true) ||
+            text.contains("chn unicom", ignoreCase = true) ||
+            text.contains("china unicom", ignoreCase = true) -> CarrierType.ChinaUnicom
+        text.contains("电信", ignoreCase = true) ||
+            text.contains("telecom", ignoreCase = true) ||
+            text.contains("chn telecom", ignoreCase = true) ||
+            text.contains("china telecom", ignoreCase = true) -> CarrierType.ChinaTelecom
         else -> null
     }
 }
@@ -32,8 +41,8 @@ fun formatCarrierName(value: String): String {
 
 @DrawableRes
 fun carrierLogoRes(value: String): Int? = when (carrierTypeOf(value)) {
-    CarrierType.ChinaMobile -> R.drawable.ic_carrier_china_mobile
-    CarrierType.ChinaUnicom -> R.drawable.ic_carrier_china_unicom
-    CarrierType.ChinaTelecom -> R.drawable.ic_carrier_china_telecom
+    CarrierType.ChinaMobile -> R.drawable.china_mobile_square_
+    CarrierType.ChinaUnicom -> R.drawable.china_unicom_square_
+    CarrierType.ChinaTelecom -> R.drawable.china_telecom_1
     null -> null
 }

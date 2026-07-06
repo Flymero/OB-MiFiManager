@@ -23,12 +23,4 @@ data class SimCard(
 ) {
     fun isPresent(): Boolean = simPresent == "1"
     fun isBanned(): Boolean = simBanned == "1"
-    fun carrierName(): String = when {
-        !isPresent() -> "未插入"
-        simIccid.startsWith("89860") -> "中国移动"
-        simIccid.startsWith("89861") -> "中国联通"
-        simIccid.startsWith("8986") -> "中国电信"
-        simIccid.isNotEmpty() -> "其他运营商"
-        else -> "未知"
-    }
 }

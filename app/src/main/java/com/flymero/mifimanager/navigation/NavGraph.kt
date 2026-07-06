@@ -1,5 +1,6 @@
 package com.flymero.mifimanager.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -46,6 +47,8 @@ import com.flymero.mifimanager.data.local.DataStoreHelper
 import com.flymero.mifimanager.ui.auth.InternetAuthScreen
 import com.flymero.mifimanager.ui.GlobalMessageBus
 import com.flymero.mifimanager.ui.dashboard.DashboardScreen
+import com.flymero.mifimanager.ui.dashboard.DashboardViewModel
+import com.flymero.mifimanager.ui.dashboard.PackageDetailScreen
 import com.flymero.mifimanager.ui.device.DeviceScreen
 import com.flymero.mifimanager.ui.devices.DevicesScreen
 import com.flymero.mifimanager.ui.login.LoginScreen
@@ -76,6 +79,9 @@ val bottomNavItems = listOf(
 
 val LocalGlobalSnackbar = compositionLocalOf<SnackbarHostState> { error("No SnackbarHostState provided") }
 
+private const val PLAN_DETAIL_ROUTE = "dashboard/plan-detail"
+private const val PLAN_DETAIL_TRANSITION_MS = 280
+
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface GlobalMessageBusEntryPoint {
@@ -87,6 +93,7 @@ fun MiFiNavHost() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val currentBaseRoute = currentRoute?.substringBefore("?")
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val shouldAutoLogin = remember {
@@ -97,8 +104,9 @@ fun MiFiNavHost() {
     }
     val startDestination = if (shouldAutoLogin) "dashboard" else "login"
 
-    val isLoginRoute = currentRoute?.startsWith("login") == true
-    val showBottomBar = currentRoute != null && !isLoginRoute
+    val isLoginRoute = currentBaseRoute?.startsWith("login") == true
+    val fullScreenRoutes = setOf(PLAN_DETAIL_ROUTE)
+    val showBottomBar = currentBaseRoute != null && !isLoginRoute && currentBaseRoute !in fullScreenRoutes
 
     val globalSnackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -146,21 +154,69 @@ fun MiFiNavHost() {
             startDestination = startDestination,
             modifier = Modifier.padding(innerPadding),
             enterTransition = {
-                if (targetState.destination.route?.substringBefore("?") == "dashboard") {
-                    fadeIn(tween(0))
+                val target = targetState.destination.route?.substringBefore("?")
+                val initial = initialState.destination.route?.substringBefore("?")
+                when {
+                    target == PLAN_DETAIL_ROUTE -> {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                        ) + fadeIn(tween(180, delayMillis = 40))
+                    }
+                    initial == PLAN_DETAIL_ROUTE && target == "dashboard" -> {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                        ) + fadeIn(tween(180, delayMillis = 40))
+                    }
+                    target == "dashboard" -> fadeIn(tween(0))
+                    else -> fadeIn(tween(220))
+                }
+            },
+            exitTransition = {
+                val target = targetState.destination.route?.substringBefore("?")
+                val initial = initialState.destination.route?.substringBefore("?")
+                when {
+                    target == PLAN_DETAIL_ROUTE -> {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                        ) + fadeOut(tween(140))
+                    }
+                    initial == PLAN_DETAIL_ROUTE && target == "dashboard" -> {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                        ) + fadeOut(tween(140))
+                    }
+                    target == "dashboard" -> fadeOut(tween(0))
+                    else -> fadeOut(tween(180))
+                }
+            },
+            popEnterTransition = {
+                val target = targetState.destination.route?.substringBefore("?")
+                val initial = initialState.destination.route?.substringBefore("?")
+                if (initial == PLAN_DETAIL_ROUTE && target == "dashboard") {
+                    slideIntoContainer(
+                        AnimatedContentTransitionScope.SlideDirection.Right,
+                        animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                    ) + fadeIn(tween(180, delayMillis = 40))
                 } else {
                     fadeIn(tween(220))
                 }
             },
-            exitTransition = {
-                if (targetState.destination.route?.substringBefore("?") == "dashboard") {
-                    fadeOut(tween(0))
+            popExitTransition = {
+                val target = targetState.destination.route?.substringBefore("?")
+                val initial = initialState.destination.route?.substringBefore("?")
+                if (initial == PLAN_DETAIL_ROUTE && target == "dashboard") {
+                    slideOutOfContainer(
+                        AnimatedContentTransitionScope.SlideDirection.Right,
+                        animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                    ) + fadeOut(tween(140))
                 } else {
                     fadeOut(tween(180))
                 }
-            },
-            popEnterTransition = { fadeIn(tween(220)) },
-            popExitTransition = { fadeOut(tween(180)) }
+            }
         ) {
             composable(
                 "login?fromLogout={fromLogout}",
@@ -179,7 +235,21 @@ fun MiFiNavHost() {
                     }
                 )
             }
-            composable("dashboard") { DashboardScreen() }
+            composable("dashboard") {
+                DashboardScreen(
+                    onOpenPlanDetail = { navController.navigate(PLAN_DETAIL_ROUTE) }
+                )
+            }
+            composable(PLAN_DETAIL_ROUTE) {
+                val dashboardBackStackEntry = remember(navController) {
+                    navController.getBackStackEntry("dashboard")
+                }
+                val dashboardViewModel: DashboardViewModel = hiltViewModel(dashboardBackStackEntry)
+                PackageDetailScreen(
+                    viewModel = dashboardViewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
             composable("signal") { SignalScreen() }
             composable("wifi") { WifiScreen() }
             composable("devices") {

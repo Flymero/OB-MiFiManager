@@ -4,19 +4,28 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -28,11 +37,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -61,12 +73,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -74,6 +84,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -105,6 +116,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.flymero.mifimanager.data.model.HomepageInfo
 import com.flymero.mifimanager.data.model.OrderItem
 import com.flymero.mifimanager.data.model.PlanInfo
+import com.flymero.mifimanager.data.model.PlanSimCard
 import com.flymero.mifimanager.data.model.StatisticsInfo
 import com.flymero.mifimanager.data.model.StatusInfo
 import com.flymero.mifimanager.ui.components.CardTitle
@@ -124,8 +136,11 @@ import com.flymero.mifimanager.ui.theme.SpeedUpload
 import com.flymero.mifimanager.ui.theme.Success
 import com.flymero.mifimanager.ui.theme.AppColors
 import com.flymero.mifimanager.ui.theme.Warning
+import com.flymero.mifimanager.ui.theme.mifiDefaultSpatialSpec
+import com.flymero.mifimanager.ui.theme.mifiFastEffectsSpec
 import com.flymero.mifimanager.ui.util.carrierLogoRes
 import com.flymero.mifimanager.ui.util.formatCarrierName
+import kotlinx.coroutines.launch
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -138,7 +153,10 @@ private data class DashboardDragOverlay(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
+fun DashboardScreen(
+    viewModel: DashboardViewModel = hiltViewModel(),
+    onOpenPlanDetail: () -> Unit = {}
+) {
     val state by viewModel.state.collectAsState()
     val status = state.statusInfo
     val homepage = state.homepageInfo
@@ -146,10 +164,8 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val plan = state.planInfo
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val sheetState = rememberModalBottomSheetState()
     val dashboardScrollState = rememberScrollState()
 
-    var showPlanDetail by rememberSaveable { mutableStateOf(false) }
     var isEditingCards by rememberSaveable { mutableStateOf(false) }
     var showAddCards by rememberSaveable { mutableStateOf(false) }
     var dashboardScrollViewportBounds by remember { mutableStateOf<Rect?>(null) }
@@ -234,7 +250,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
             showPlanHint = state.showPlanHint,
             onOpenPlan = {
                 viewModel.markPlanHintSeen()
-                showPlanDetail = true
+                onOpenPlanDetail()
             },
             onToggleCellular = viewModel::toggleCellular
         )
@@ -351,9 +367,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
         )
     }
 
-    var showOrderHistory by remember { mutableStateOf(false) }
-    var displayCount by remember { mutableStateOf(10) }
-
     if (showAddCards) {
         val missingCards = DashboardCardType.availableCards.filterNot { it in state.dashboardCards }
         ModalBottomSheet(
@@ -367,49 +380,119 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
             )
         }
     }
+}
 
-    if (showPlanDetail && plan != null) {
-        val canScrollPlanDetail = sheetState.currentValue == SheetValue.Expanded
-        ModalBottomSheet(
-            onDismissRequest = { showPlanDetail = false },
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface
-        ) {
-            PackageDetailSheet(
-                plan = plan,
-                context = context,
-                isRefreshing = state.isPlanRefreshing,
-                contentScrollEnabled = canScrollPlanDetail,
-                onRefresh = viewModel::refreshPlanManually,
-                onClose = { showPlanDetail = false },
-                onShowOrders = {
-                    viewModel.fetchOrders()
-                    showOrderHistory = true
-                }
-            )
+@Composable
+fun PackageDetailScreen(
+    viewModel: DashboardViewModel = hiltViewModel(),
+    onBack: () -> Unit = {}
+) {
+    val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val plan = state.planInfo
+    var showOrders by rememberSaveable { mutableStateOf(false) }
+    var displayCount by rememberSaveable { mutableStateOf(10) }
+    val planDetailListState = rememberLazyListState()
+    val orderListState = rememberLazyListState()
+    val spatialSpec = mifiDefaultSpatialSpec<IntOffset>()
+    val effectsSpec = mifiFastEffectsSpec<Float>()
+
+    BackHandler(enabled = showOrders) {
+        showOrders = false
+        displayCount = 10
+    }
+
+    LaunchedEffect(state.refreshMessage) {
+        state.refreshMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearRefreshMessage()
         }
     }
 
-    if (showOrderHistory) {
-        val orderSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
-            onDismissRequest = {
-                showOrderHistory = false
-                displayCount = 10
-            },
-            sheetState = orderSheetState,
-            containerColor = MaterialTheme.colorScheme.surface
+    Box(modifier = Modifier.fillMaxSize()) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
         ) {
-            OrderHistorySheet(
-                orders = state.orderList,
-                isLoading = state.isOrderLoading,
-                error = state.orderError,
-                displayCount = displayCount,
-                onLoadMore = { displayCount += 10 },
-                onClose = {
-                    showOrderHistory = false
-                    displayCount = 10
+            AnimatedContent(
+                targetState = showOrders,
+                label = "planDetailContent",
+                transitionSpec = {
+                    val direction = if (targetState) {
+                        AnimatedContentTransitionScope.SlideDirection.Left
+                    } else {
+                        AnimatedContentTransitionScope.SlideDirection.Right
+                    }
+                    (slideIntoContainer(direction, animationSpec = spatialSpec) + fadeIn(effectsSpec)) togetherWith
+                        (slideOutOfContainer(direction, animationSpec = spatialSpec) + fadeOut(effectsSpec))
                 }
+            ) { ordersVisible ->
+                if (ordersVisible) {
+                    OrderHistorySheet(
+                        orders = state.orderList,
+                        isLoading = state.isOrderLoading,
+                        error = state.orderError,
+                        listState = orderListState,
+                        displayCount = displayCount,
+                        onLoadMore = { displayCount += 10 },
+                        onClose = {
+                            showOrders = false
+                            displayCount = 10
+                        }
+                    )
+                } else if (plan != null) {
+                    PackageDetailSheet(
+                        plan = plan,
+                        context = context,
+                        isRefreshing = state.isPlanRefreshing,
+                        listState = planDetailListState,
+                        onRefresh = {
+                            viewModel.refreshPlanManually()
+                            scope.launch {
+                                snackbarHostState.showSnackbar("正在刷新套餐信息")
+                            }
+                        },
+                        onClose = onBack,
+                        onShowOrders = {
+                            viewModel.fetchOrders()
+                            showOrders = true
+                        }
+                    )
+                } else {
+                    MissingPlanDetail(onBack = onBack)
+                }
+            }
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+    }
+}
+
+@Composable
+private fun MissingPlanDetail(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        DetailHeader(title = "套餐详情", onBack = onBack)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "暂无套餐数据",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -1433,13 +1516,144 @@ private fun DashboardStatCard(
     }
 }
 
+@Composable
+private fun DetailHeader(
+    title: String,
+    onBack: () -> Unit,
+    action: (@Composable () -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "返回"
+            )
+        }
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold
+        )
+        action?.invoke()
+    }
+}
+
+@Composable
+private fun Modifier.pressScale(
+    interactionSource: MutableInteractionSource,
+    enabled: Boolean = true
+): Modifier {
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (enabled && pressed) 0.97f else 1f,
+        animationSpec = mifiFastEffectsSpec(),
+        label = "pressScale"
+    )
+    return graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
+}
+
+@Composable
+private fun CopyableKeyValueRow(
+    label: String,
+    value: String,
+    clipLabel: String,
+    context: Context
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(0.34f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            modifier = Modifier.weight(0.66f),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = value,
+                modifier = Modifier.weight(1f, fill = false),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            IconButton(onClick = {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText(clipLabel, value))
+                Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+            }) {
+                Icon(
+                    Icons.Default.ContentCopy,
+                    contentDescription = "复制",
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SimStatusRow(sim: PlanSimCard) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = formatCarrierName(sim.operatorText).ifBlank { "SIM 卡" },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (sim.isInUse()) {
+                Text(
+                    text = "当前",
+                    modifier = Modifier.padding(start = 8.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+        Text(
+            text = sim.realnameStatusText.ifBlank { "--" },
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
 
 @Composable
 private fun PackageDetailSheet(
     plan: PlanInfo,
     context: Context,
     isRefreshing: Boolean,
-    contentScrollEnabled: Boolean,
+    listState: LazyListState,
     onRefresh: () -> Unit,
     onClose: () -> Unit,
     onShowOrders: () -> Unit
@@ -1447,181 +1661,127 @@ private fun PackageDetailSheet(
     val daysLeft = plan.daysUntilExpire()
     val dailyBudget = plan.dailyBudget()
     val dailyAverage = plan.dailyAverageUsage()
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState(), enabled = contentScrollEnabled)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+    val planRows = buildList {
+        plan.balance.takeIf { it.isNotBlank() }?.let { add("账户余额" to "¥$it") }
+        plan.operator.takeIf { it.isNotBlank() }?.let { add("运营商" to formatCarrierName(it)) }
+        plan.realnameStatus.takeIf { it.isNotBlank() }?.let { add("实名状态" to it) }
+        plan.paymentTypeText.takeIf { it.isNotBlank() }?.let { add("支付方式" to it) }
+    }
+    val equipment = plan.equipment
+    val equipmentRows = equipment?.let {
+        buildList {
+            add("设备状态" to if (it.deviceStatus == 1) "在线" else "离线")
+            it.hotspotName.takeIf { name -> name.isNotBlank() }?.let { name -> add("热点名称" to name) }
+        }
+    }.orEmpty()
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "套餐详情",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            TextButton(onClick = onRefresh, enabled = !isRefreshing) {
-                Text(if (isRefreshing) "刷新中..." else "刷新")
+        item(key = "header") {
+            DetailHeader(title = "套餐详情", onBack = onClose) {
+                val refreshInteraction = remember { MutableInteractionSource() }
+                TextButton(
+                    onClick = onRefresh,
+                    enabled = !isRefreshing,
+                    modifier = Modifier.pressScale(refreshInteraction, enabled = !isRefreshing),
+                    interactionSource = refreshInteraction
+                ) {
+                    Text(if (isRefreshing) "刷新中..." else "刷新")
+                }
             }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = plan.packageName,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "到期时间：${plan.expiretime}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
 
-        Surface(
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surfaceVariant
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "${"%.2f".format(plan.usagePercent())}%",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "已使用",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "剩余 ${plan.remainFormatted()}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "总流量 ${plan.totalFormatted()}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                LinearProgressIndicator(
-                    progress = { plan.usagePercent() / 100f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.outlineVariant
+        item(key = "package-title") {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = plan.packageName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "已用 ${plan.usedFormatted()}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "剩余 ${plan.remainFormatted()}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = "到期时间：${plan.expiretime}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
-        Surface(
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+        item(key = "usage-summary") {
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surfaceVariant
             ) {
-                KeyValueRow(label = "总流量", value = plan.totalFormatted())
-                SectionDivider()
-                KeyValueRow(label = "已使用", value = plan.usedFormatted())
-                SectionDivider()
-                KeyValueRow(label = "剩余流量", value = plan.remainFormatted())
-                SectionDivider()
-                KeyValueRow(label = "日均使用", value = dailyAverage ?: "--")
-                daysLeft?.let {
-                    SectionDivider()
-                    KeyValueRow(label = "距离到期", value = "$it 天")
-                }
-                dailyBudget?.let {
-                    SectionDivider()
-                    KeyValueRow(label = "预计每日可用", value = it)
-                }
-                SectionDivider()
-                KeyValueRow(label = "使用进度", value = "${"%.2f".format(plan.usagePercent())}%")
-                SectionDivider()
-                KeyValueRow(label = "到期时间", value = plan.expiretime)
-                plan.equipment?.takeIf { it.devNo.isNotBlank() }?.let { equipment ->
-                    SectionDivider()
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "${"%.2f".format(plan.usagePercent())}%",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "已使用",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "剩余 ${plan.remainFormatted()}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "总流量 ${plan.totalFormatted()}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    LinearProgressIndicator(
+                        progress = { plan.usagePercent() / 100f },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .height(8.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.outlineVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "充值号",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "已用 ${plan.usedFormatted()}",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = equipment.devNo,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                            IconButton(onClick = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("recharge_no", equipment.devNo))
-                                Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
-                            }) {
-                                Icon(
-                                    Icons.Default.ContentCopy,
-                                    contentDescription = "复制",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
+                        Text(
+                            text = "剩余 ${plan.remainFormatted()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
         }
 
-        val planRows = buildList {
-            plan.balance.takeIf { it.isNotBlank() }?.let { add("账户余额" to "¥$it") }
-            plan.operator.takeIf { it.isNotBlank() }?.let { add("运营商" to formatCarrierName(it)) }
-            plan.realnameStatus.takeIf { it.isNotBlank() }?.let { add("实名状态" to it) }
-            plan.paymentTypeText.takeIf { it.isNotBlank() }?.let { add("支付方式" to it) }
-        }
-        if (planRows.isNotEmpty()) {
+        item(key = "usage-details") {
             Surface(
                 shape = MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.surface,
@@ -1631,64 +1791,119 @@ private fun PackageDetailSheet(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    CardTitle("套餐信息")
-                    planRows.forEachIndexed { index, (label, value) ->
-                        if (index > 0) SectionDivider()
-                        KeyValueRow(label = label, value = value)
-                    }
-                }
-            }
-        }
-
-        plan.equipment?.let { equipment ->
-            val equipmentRows = buildList {
-                add("设备状态" to if (equipment.deviceStatus == 1) "在线" else "离线")
-                equipment.hotspotName.takeIf { it.isNotBlank() }?.let { add("热点名称" to it) }
-                equipment.hotspotPassword.takeIf { it.isNotBlank() }?.let { add("热点密码" to it) }
-            }
-            Surface(
-                shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    CardTitle("设备与 SIM")
-                    equipmentRows.forEachIndexed { index, (label, value) ->
-                        if (index > 0) SectionDivider()
-                        KeyValueRow(label = label, value = value)
-                    }
-                    equipment.cardList.forEach { sim ->
-                        val label = buildString {
-                            append(formatCarrierName(sim.operatorText).ifBlank { "SIM 卡" })
-                            if (sim.isInUse()) append("（当前）")
-                        }
-                        val value = sim.realnameStatusText.ifBlank { "--" }
+                    KeyValueRow(label = "总流量", value = plan.totalFormatted())
+                    SectionDivider()
+                    KeyValueRow(label = "已使用", value = plan.usedFormatted())
+                    SectionDivider()
+                    KeyValueRow(label = "剩余流量", value = plan.remainFormatted())
+                    SectionDivider()
+                    KeyValueRow(label = "日均使用", value = dailyAverage ?: "--")
+                    daysLeft?.let {
                         SectionDivider()
-                        KeyValueRow(label = label, value = value)
+                        KeyValueRow(label = "距离到期", value = "$it 天")
+                    }
+                    dailyBudget?.let {
+                        SectionDivider()
+                        KeyValueRow(label = "预计每日可用", value = it)
+                    }
+                    SectionDivider()
+                    KeyValueRow(label = "使用进度", value = "${"%.2f".format(plan.usagePercent())}%")
+                    SectionDivider()
+                    KeyValueRow(label = "到期时间", value = plan.expiretime)
+                    equipment?.takeIf { it.devNo.isNotBlank() }?.let {
+                        SectionDivider()
+                        CopyableKeyValueRow(
+                            label = "充值号",
+                            value = it.devNo,
+                            clipLabel = "recharge_no",
+                            context = context
+                        )
                     }
                 }
             }
         }
 
-        OutlinedButton(
-            onClick = onShowOrders,
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large
-        ) {
-            Text("历史订单")
+        if (planRows.isNotEmpty()) {
+            item(key = "plan-info") {
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        CardTitle("套餐信息")
+                        planRows.forEachIndexed { index, (label, value) ->
+                            if (index > 0) SectionDivider()
+                            KeyValueRow(label = label, value = value)
+                        }
+                    }
+                }
+            }
         }
 
-        Button(
-            onClick = onClose,
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large
-        ) {
-            Text("知道了")
+        if (equipment != null) {
+            item(key = "equipment-info") {
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        CardTitle("设备与 SIM")
+                        equipmentRows.forEachIndexed { index, (label, value) ->
+                            if (index > 0) SectionDivider()
+                            KeyValueRow(label = label, value = value)
+                        }
+                        equipment.hotspotPassword.takeIf { it.isNotBlank() }?.let { password ->
+                            if (equipmentRows.isNotEmpty()) SectionDivider()
+                            CopyableKeyValueRow(
+                                label = "热点密码",
+                                value = password,
+                                clipLabel = "hotspot_password",
+                                context = context
+                            )
+                        }
+                        equipment.cardList.forEach { sim ->
+                            SectionDivider()
+                            SimStatusRow(sim = sim)
+                        }
+                    }
+                }
+            }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+
+        item(key = "actions") {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                val ordersInteraction = remember { MutableInteractionSource() }
+                OutlinedButton(
+                    onClick = onShowOrders,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pressScale(ordersInteraction),
+                    shape = MaterialTheme.shapes.large,
+                    interactionSource = ordersInteraction
+                ) {
+                    Text("历史订单")
+                }
+                val closeInteraction = remember { MutableInteractionSource() }
+                Button(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pressScale(closeInteraction),
+                    shape = MaterialTheme.shapes.large,
+                    interactionSource = closeInteraction
+                ) {
+                    Text("知道了")
+                }
+            }
+        }
     }
 }
 
@@ -1767,6 +1982,7 @@ private fun OrderHistorySheet(
     orders: List<OrderItem>,
     isLoading: Boolean,
     error: String?,
+    listState: LazyListState,
     displayCount: Int,
     onLoadMore: () -> Unit,
     onClose: () -> Unit
@@ -1774,64 +1990,69 @@ private fun OrderHistorySheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.75f)
+            .fillMaxHeight()
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = "历史订单",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold
-        )
+        DetailHeader(title = "历史订单", onBack = onClose)
 
-        if (isLoading) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) { CircularProgressIndicator() }
-        } else if (error != null) {
-            Text(
-                text = error,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        } else if (orders.isEmpty()) {
-            Text(
-                text = "暂无订单记录",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 24.dp)
-            )
-        } else {
-            val visibleOrders = orders.take(displayCount)
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(visibleOrders, key = { it.orderNo }) { order ->
-                    OrderItemCard(order)
-                }
-                if (displayCount < orders.size) {
-                    item {
-                        TextButton(
-                            onClick = onLoadMore,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("查看更多（剩余 ${orders.size - displayCount} 条）")
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            when {
+                isLoading -> CircularProgressIndicator()
+                error != null -> Text(
+                    text = error,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                orders.isEmpty() -> Text(
+                    text = "暂无订单记录",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                else -> {
+                    val visibleOrders = orders.take(displayCount)
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(visibleOrders, key = { it.orderNo }) { order ->
+                            OrderItemCard(order)
+                        }
+                        if (displayCount < orders.size) {
+                            item {
+                                val loadMoreInteraction = remember { MutableInteractionSource() }
+                                TextButton(
+                                    onClick = onLoadMore,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .pressScale(loadMoreInteraction),
+                                    interactionSource = loadMoreInteraction
+                                ) {
+                                    Text("查看更多（剩余 ${orders.size - displayCount} 条）")
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
+        val closeInteraction = remember { MutableInteractionSource() }
         Button(
             onClick = onClose,
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large
+            modifier = Modifier
+                .fillMaxWidth()
+                .pressScale(closeInteraction),
+            shape = MaterialTheme.shapes.large,
+            interactionSource = closeInteraction
         ) {
-            Text("关闭")
+            Text("返回套餐详情")
         }
         Spacer(modifier = Modifier.height(8.dp))
     }

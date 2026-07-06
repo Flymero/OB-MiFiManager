@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.flymero.mifimanager.data.model.DeviceManagementInfo
 import com.flymero.mifimanager.data.model.WlanMacFiltersInfo
 import com.flymero.mifimanager.data.repository.MiFiRepository
+import com.flymero.mifimanager.ui.GlobalMessageBus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +22,8 @@ data class DevicesState(
 
 @HiltViewModel
 class DevicesViewModel @Inject constructor(
-    private val repository: MiFiRepository
+    private val repository: MiFiRepository,
+    private val globalMessageBus: GlobalMessageBus
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DevicesState())
@@ -44,14 +46,12 @@ class DevicesViewModel @Inject constructor(
     fun blockDevice(mac: String) {
         val normalizedMac = mac.trim().replace('-', ':').uppercase()
         if (normalizedMac == _state.value.macFiltersInfo.normalizedCurrentDeviceMac()) {
-            _state.value = _state.value.copy(actionResult = "不能屏蔽当前设备")
+            globalMessageBus.post("不能屏蔽当前设备")
             return
         }
         viewModelScope.launch {
             val result = repository.blockDevice(mac)
-            _state.value = _state.value.copy(
-                actionResult = if (result.getOrNull()?.isSuccess == true) "设备已屏蔽" else "屏蔽失败"
-            )
+            globalMessageBus.post(if (result.getOrNull()?.isSuccess == true) "设备已屏蔽" else "屏蔽失败")
             refresh()
         }
     }
@@ -59,15 +59,13 @@ class DevicesViewModel @Inject constructor(
     fun unblockDevice(mac: String) {
         viewModelScope.launch {
             val result = repository.unblockDevice(mac)
-            _state.value = _state.value.copy(
-                actionResult = if (result.getOrNull()?.isSuccess == true) "已解除屏蔽" else "解除失败"
-            )
+            globalMessageBus.post(if (result.getOrNull()?.isSuccess == true) "已解除屏蔽" else "解除失败")
             refresh()
         }
     }
 
     fun showMessage(message: String) {
-        _state.value = _state.value.copy(actionResult = message)
+        globalMessageBus.post(message)
     }
 
     fun clearResult() {

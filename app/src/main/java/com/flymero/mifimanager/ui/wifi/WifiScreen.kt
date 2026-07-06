@@ -41,8 +41,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -63,6 +61,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.flymero.mifimanager.data.model.WpsInfo
+import com.flymero.mifimanager.navigation.LocalGlobalSnackbar
 import com.flymero.mifimanager.ui.components.CardTitle
 import com.flymero.mifimanager.ui.components.KeyValueRow
 import com.flymero.mifimanager.ui.components.SectionCard
@@ -74,7 +73,7 @@ import com.flymero.mifimanager.ui.theme.mifiFastSpatialSpec
 @Composable
 fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = LocalGlobalSnackbar.current
 
     var ssid by remember(state.securityInfo) { mutableStateOf(state.securityInfo.decodedSsid()) }
     var password by remember(state.securityInfo) { mutableStateOf(state.securityInfo.currentKey()) }
@@ -384,10 +383,6 @@ fun WifiScreen(viewModel: WifiViewModel = hiltViewModel()) {
                 onCancel = viewModel::cancelWps
             )
         }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
     }
 
     if (showSecurityModeSheet) {

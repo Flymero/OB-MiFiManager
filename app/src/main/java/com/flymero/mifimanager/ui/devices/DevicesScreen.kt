@@ -34,8 +34,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,19 +74,11 @@ fun DevicesScreen(
     viewModel: DevicesViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedDevice by remember { mutableStateOf<ClientDevice?>(null) }
     val pagerState = rememberPagerState(pageCount = { 4 })
     val scope = rememberCoroutineScope()
-
-    LaunchedEffect(state.actionResult) {
-        state.actionResult?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.clearResult()
-        }
-    }
 
     LaunchedEffect(pagerState.currentPage) {
         selectedTab = pagerState.currentPage
@@ -259,7 +249,6 @@ fun DevicesScreen(
                 }
             }
         }
-        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }
 
     selectedDevice?.let { device ->

@@ -81,4 +81,13 @@ class DataStoreHelper @Inject constructor(
             .putBoolean("plan_usage_hint_seen", true)
             .apply()
     }
+
+    fun hasSeenDashboardEditHint(): Boolean =
+        prefs.getBoolean("dashboard_edit_hint_seen", false)
+
+    fun setDashboardEditHintSeen() {
+        prefs.edit()
+            .putBoolean("dashboard_edit_hint_seen", true)
+            .apply()
+    }
 }

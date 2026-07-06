@@ -8,8 +8,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -71,8 +75,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -84,7 +86,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -163,20 +164,13 @@ fun DashboardScreen(
     val stats = state.statisticsInfo
     val plan = state.planInfo
     val context = LocalContext.current
-    val snackbarHostState = remember { SnackbarHostState() }
     val dashboardScrollState = rememberScrollState()
 
     var isEditingCards by rememberSaveable { mutableStateOf(false) }
     var showAddCards by rememberSaveable { mutableStateOf(false) }
+    var showEditDragHint by rememberSaveable { mutableStateOf(false) }
     var dashboardScrollViewportBounds by remember { mutableStateOf<Rect?>(null) }
     var dashboardDragOverlay by remember { mutableStateOf<DashboardDragOverlay?>(null) }
-
-    LaunchedEffect(state.refreshMessage) {
-        state.refreshMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.clearRefreshMessage()
-        }
-    }
 
     if (state.isLoading) {
         Column(
@@ -314,7 +308,11 @@ fun DashboardScreen(
                                 Icon(Icons.Default.RestartAlt, contentDescription = "恢复默认首页卡片")
                             }
                         }
-                        IconButton(onClick = { isEditingCards = !isEditingCards }) {
+                        IconButton(onClick = {
+                            val enteringEdit = !isEditingCards
+                            isEditingCards = enteringEdit
+                            showEditDragHint = enteringEdit && viewModel.consumeDashboardEditHint()
+                        }) {
                             Icon(
                                 imageVector = if (isEditingCards) Icons.Default.Save else Icons.Default.Edit,
                                 contentDescription = if (isEditingCards) "完成编辑" else "编辑首页卡片"
@@ -329,6 +327,7 @@ fun DashboardScreen(
                     hasPlan = plan != null,
                     scrollState = dashboardScrollState,
                     scrollViewportBounds = dashboardScrollViewportBounds,
+                    showDragHint = showEditDragHint,
                     onDragOverlayChange = { dashboardDragOverlay = it },
                     onReorder = viewModel::saveDashboardCardOrder,
                     onRemove = viewModel::removeDashboardCard,
@@ -361,10 +360,6 @@ fun DashboardScreen(
                 }
             }
         }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
     }
 
     if (showAddCards) {
@@ -389,8 +384,6 @@ fun PackageDetailScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     val plan = state.planInfo
     var showOrders by rememberSaveable { mutableStateOf(false) }
     var displayCount by rememberSaveable { mutableStateOf(10) }
@@ -404,73 +397,53 @@ fun PackageDetailScreen(
         displayCount = 10
     }
 
-    LaunchedEffect(state.refreshMessage) {
-        state.refreshMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearRefreshMessage()
-        }
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            AnimatedContent(
-                targetState = showOrders,
-                label = "planDetailContent",
-                transitionSpec = {
-                    val direction = if (targetState) {
-                        AnimatedContentTransitionScope.SlideDirection.Left
-                    } else {
-                        AnimatedContentTransitionScope.SlideDirection.Right
-                    }
-                    (slideIntoContainer(direction, animationSpec = spatialSpec) + fadeIn(effectsSpec)) togetherWith
-                        (slideOutOfContainer(direction, animationSpec = spatialSpec) + fadeOut(effectsSpec))
-                }
-            ) { ordersVisible ->
-                if (ordersVisible) {
-                    OrderHistorySheet(
-                        orders = state.orderList,
-                        isLoading = state.isOrderLoading,
-                        error = state.orderError,
-                        listState = orderListState,
-                        displayCount = displayCount,
-                        onLoadMore = { displayCount += 10 },
-                        onClose = {
-                            showOrders = false
-                            displayCount = 10
-                        }
-                    )
-                } else if (plan != null) {
-                    PackageDetailSheet(
-                        plan = plan,
-                        context = context,
-                        isRefreshing = state.isPlanRefreshing,
-                        listState = planDetailListState,
-                        onRefresh = {
-                            viewModel.refreshPlanManually()
-                            scope.launch {
-                                snackbarHostState.showSnackbar("正在刷新套餐信息")
-                            }
-                        },
-                        onClose = onBack,
-                        onShowOrders = {
-                            viewModel.fetchOrders()
-                            showOrders = true
-                        }
-                    )
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        AnimatedContent(
+            targetState = showOrders,
+            label = "planDetailContent",
+            transitionSpec = {
+                val direction = if (targetState) {
+                    AnimatedContentTransitionScope.SlideDirection.Left
                 } else {
-                    MissingPlanDetail(onBack = onBack)
+                    AnimatedContentTransitionScope.SlideDirection.Right
                 }
+                (slideIntoContainer(direction, animationSpec = spatialSpec) + fadeIn(effectsSpec)) togetherWith
+                    (slideOutOfContainer(direction, animationSpec = spatialSpec) + fadeOut(effectsSpec))
+            }
+        ) { ordersVisible ->
+            if (ordersVisible) {
+                OrderHistorySheet(
+                    orders = state.orderList,
+                    isLoading = state.isOrderLoading,
+                    error = state.orderError,
+                    listState = orderListState,
+                    displayCount = displayCount,
+                    onLoadMore = { displayCount += 10 },
+                    onClose = {
+                        showOrders = false
+                        displayCount = 10
+                    }
+                )
+            } else if (plan != null) {
+                PackageDetailSheet(
+                    plan = plan,
+                    context = context,
+                    isRefreshing = state.isPlanRefreshing,
+                    listState = planDetailListState,
+                    onRefresh = viewModel::refreshPlanManually,
+                    onClose = onBack,
+                    onShowOrders = {
+                        viewModel.fetchOrders()
+                        showOrders = true
+                    }
+                )
+            } else {
+                MissingPlanDetail(onBack = onBack)
             }
         }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        )
     }
 }
 
@@ -505,6 +478,7 @@ private fun DashboardCardsList(
     hasPlan: Boolean,
     scrollState: ScrollState,
     scrollViewportBounds: Rect?,
+    showDragHint: Boolean,
     onDragOverlayChange: (DashboardDragOverlay?) -> Unit,
     onReorder: (List<DashboardCardType>) -> Unit,
     onRemove: (DashboardCardType) -> Unit,
@@ -545,6 +519,20 @@ private fun DashboardCardsList(
     val spacingPx = with(density) { cardSpacing.toPx() }
     val autoScrollEdgePx = with(density) { autoScrollEdge.toPx() }
     val autoScrollMaxStepPx = with(density) { autoScrollMaxStep.toPx() }
+    val editWobbleTransition = rememberInfiniteTransition(label = "dashboard-edit-wobble")
+    val editWobbleRotation by editWobbleTransition.animateFloat(
+        initialValue = -0.35f,
+        targetValue = 0.35f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 460
+                -0.35f at 0
+                0.35f at 230
+                -0.35f at 460
+            }
+        ),
+        label = "dashboard-edit-card-rotation"
+    )
     val activeBounds = if (draggedCard != null && dragBaseBounds.isNotEmpty()) {
         dragBaseBounds
     } else {
@@ -618,9 +606,14 @@ private fun DashboardCardsList(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(cardSpacing)) {
-            displayCards.forEach { card ->
+            displayCards.forEachIndexed { index, card ->
                 key(card) {
                     val isDragging = draggedCard == card
+                    val editRotation = if (editMode && !isDragging && draggedCard == null) {
+                        editWobbleRotation * if (index % 2 == 0) 1f else -1f
+                    } else {
+                        0f
+                    }
                     val targetTranslationY = if (draggedCard != null) {
                         val top = projectedTops[card]
                         val bounds = activeBounds[card]
@@ -639,6 +632,7 @@ private fun DashboardCardsList(
                             .zIndex(if (isDragging) 1f else 0f)
                             .graphicsLayer {
                                 translationY = animatedTranslationY
+                                rotationZ = editRotation
                                 if (isDragging) alpha = 0.22f
                             }
                             .onGloballyPositioned { coordinates ->
@@ -744,26 +738,28 @@ private fun DashboardCardsList(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.94f)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                if (showDragHint && index == 0) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.94f)
                                     ) {
-                                        Icon(
-                                            Icons.Default.DragHandle,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Text(
-                                            text = "长按拖动",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                Icons.Default.DragHandle,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = "长按拖动",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
                                     }
                                 }
                                 IconButton(

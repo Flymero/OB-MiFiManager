@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -34,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -80,6 +82,7 @@ val bottomNavItems = listOf(
 val LocalGlobalSnackbar = compositionLocalOf<SnackbarHostState> { error("No SnackbarHostState provided") }
 
 private const val PLAN_DETAIL_ROUTE = "dashboard/plan-detail"
+private const val AUTH_ROUTE = "auth"
 private const val PLAN_DETAIL_TRANSITION_MS = 280
 
 @EntryPoint
@@ -123,10 +126,14 @@ fun MiFiNavHost() {
 
     CompositionLocalProvider(LocalGlobalSnackbar provides globalSnackbarHostState) {
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(hostState = globalSnackbarHostState) },
             bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp
+                ) {
                     bottomNavItems.forEach { screen ->
                         NavigationBarItem(
                             icon = { Icon(screen.icon, contentDescription = screen.title) },
@@ -157,6 +164,18 @@ fun MiFiNavHost() {
                 val target = targetState.destination.route?.substringBefore("?")
                 val initial = initialState.destination.route?.substringBefore("?")
                 when {
+                    initial == "devices" && target == AUTH_ROUTE -> {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                        ) + fadeIn(tween(180, delayMillis = 40))
+                    }
+                    initial == AUTH_ROUTE && target == "devices" -> {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                        ) + fadeIn(tween(180, delayMillis = 40))
+                    }
                     target == PLAN_DETAIL_ROUTE -> {
                         slideIntoContainer(
                             AnimatedContentTransitionScope.SlideDirection.Left,
@@ -177,6 +196,18 @@ fun MiFiNavHost() {
                 val target = targetState.destination.route?.substringBefore("?")
                 val initial = initialState.destination.route?.substringBefore("?")
                 when {
+                    initial == "devices" && target == AUTH_ROUTE -> {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                        ) + fadeOut(tween(140))
+                    }
+                    initial == AUTH_ROUTE && target == "devices" -> {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                        ) + fadeOut(tween(140))
+                    }
                     target == PLAN_DETAIL_ROUTE -> {
                         slideOutOfContainer(
                             AnimatedContentTransitionScope.SlideDirection.Left,
@@ -201,6 +232,11 @@ fun MiFiNavHost() {
                         AnimatedContentTransitionScope.SlideDirection.Right,
                         animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
                     ) + fadeIn(tween(180, delayMillis = 40))
+                } else if (initial == AUTH_ROUTE && target == "devices") {
+                    slideIntoContainer(
+                        AnimatedContentTransitionScope.SlideDirection.Right,
+                        animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                    ) + fadeIn(tween(180, delayMillis = 40))
                 } else {
                     fadeIn(tween(220))
                 }
@@ -209,6 +245,11 @@ fun MiFiNavHost() {
                 val target = targetState.destination.route?.substringBefore("?")
                 val initial = initialState.destination.route?.substringBefore("?")
                 if (initial == PLAN_DETAIL_ROUTE && target == "dashboard") {
+                    slideOutOfContainer(
+                        AnimatedContentTransitionScope.SlideDirection.Right,
+                        animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
+                    ) + fadeOut(tween(140))
+                } else if (initial == AUTH_ROUTE && target == "devices") {
                     slideOutOfContainer(
                         AnimatedContentTransitionScope.SlideDirection.Right,
                         animationSpec = tween(PLAN_DETAIL_TRANSITION_MS)
@@ -253,9 +294,9 @@ fun MiFiNavHost() {
             composable("signal") { SignalScreen() }
             composable("wifi") { WifiScreen() }
             composable("devices") {
-                DevicesScreen(onNavigateToAuth = { navController.navigate("auth") })
+                DevicesScreen(onNavigateToAuth = { navController.navigate(AUTH_ROUTE) })
             }
-            composable("auth") { InternetAuthScreen() }
+            composable(AUTH_ROUTE) { InternetAuthScreen() }
             composable("device") {
                 DeviceScreen(
                     onLogout = {

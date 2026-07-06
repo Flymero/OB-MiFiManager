@@ -10,6 +10,7 @@ import com.flymero.mifimanager.data.model.StatisticsInfo
 import com.flymero.mifimanager.data.model.StatusInfo
 import com.flymero.mifimanager.data.local.DataStoreHelper
 import com.flymero.mifimanager.data.repository.MiFiRepository
+import com.flymero.mifimanager.ui.GlobalMessageBus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,7 +67,8 @@ private fun StatusInfo.toSpeedSample(): SpeedSample {
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val repository: MiFiRepository,
-    private val dataStore: DataStoreHelper
+    private val dataStore: DataStoreHelper,
+    private val globalMessageBus: GlobalMessageBus
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DashboardState())
@@ -110,7 +112,7 @@ class DashboardViewModel @Inject constructor(
     fun removeDashboardCard(card: DashboardCardType) {
         val currentCards = _state.value.dashboardCards
         if (currentCards.size <= 1) {
-            _state.value = _state.value.copy(refreshMessage = "至少保留一张首页卡片")
+            globalMessageBus.post("至少保留一张首页卡片")
             return
         }
         saveDashboardCards(currentCards.filterNot { it == card })
@@ -124,7 +126,13 @@ class DashboardViewModel @Inject constructor(
 
     fun resetDashboardCards() {
         saveDashboardCards(DashboardCardType.defaultOrder)
-        _state.value = _state.value.copy(refreshMessage = "首页卡片已恢复默认")
+        globalMessageBus.post("首页卡片已恢复默认")
+    }
+
+    fun consumeDashboardEditHint(): Boolean {
+        if (dataStore.hasSeenDashboardEditHint()) return false
+        dataStore.setDashboardEditHintSeen()
+        return true
     }
 
     private fun startStatusPolling() {
@@ -239,18 +247,19 @@ class DashboardViewModel @Inject constructor(
     fun refreshPlanManually() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isPlanRefreshing = true)
+            globalMessageBus.post("正在刷新套餐信息")
             runCatching {
                 refreshPlan()
             }.onSuccess { result ->
                 _state.value = _state.value.copy(
-                    isPlanRefreshing = false,
-                    refreshMessage = if (result.success) "套餐信息已刷新" else result.message
+                    isPlanRefreshing = false
                 )
+                globalMessageBus.post(if (result.success) "套餐信息已刷新" else result.message ?: "套餐信息刷新失败")
             }.onFailure {
                 _state.value = _state.value.copy(
-                    isPlanRefreshing = false,
-                    refreshMessage = "套餐信息刷新失败"
+                    isPlanRefreshing = false
                 )
+                globalMessageBus.post("套餐信息刷新失败")
             }
         }
     }
@@ -286,8 +295,10 @@ class DashboardViewModel @Inject constructor(
             }
             refreshHomepage()
             _state.value = _state.value.copy(
-                cellularConnecting = false,
-                refreshMessage = if (success) {
+                cellularConnecting = false
+            )
+            globalMessageBus.post(
+                if (success) {
                     if (connect) "蜂窝网络已连接" else "蜂窝网络已断开"
                 } else {
                     "蜂窝网络切换失败"

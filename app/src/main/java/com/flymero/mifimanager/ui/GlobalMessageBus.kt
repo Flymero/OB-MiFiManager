@@ -7,7 +7,7 @@ import javax.inject.Singleton
 
 @Singleton
 class GlobalMessageBus @Inject constructor() {
-    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = _messages
 
     fun post(message: String) {

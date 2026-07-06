@@ -10,6 +10,7 @@ import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
@@ -75,6 +76,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -120,6 +122,12 @@ import com.flymero.mifimanager.ui.util.formatCarrierName
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
+private data class DashboardDragOverlay(
+    val card: DashboardCardType,
+    val pointerWindowY: Float,
+    val grabOffsetY: Float
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
@@ -131,11 +139,14 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val sheetState = rememberModalBottomSheetState()
+    val dashboardScrollState = rememberScrollState()
 
     var showPlanDetail by rememberSaveable { mutableStateOf(false) }
     var showPlanHint by rememberSaveable { mutableStateOf(plan != null) }
     var isEditingCards by rememberSaveable { mutableStateOf(false) }
     var showAddCards by rememberSaveable { mutableStateOf(false) }
+    var dashboardScrollViewportBounds by remember { mutableStateOf<Rect?>(null) }
+    var dashboardDragOverlay by remember { mutableStateOf<DashboardDragOverlay?>(null) }
 
     LaunchedEffect(plan != null, plan?.equipment?.devNo, plan?.packageName) {
         if (plan != null) showPlanHint = true
@@ -195,96 +206,140 @@ fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val animatedSignal by animateIntAsState(signalQuality, tween(400), label = "signal")
     val carrierName = formatCarrierName(homepage.networkName).ifEmpty { "未知" }
     val carrierLogo = carrierLogoRes(homepage.networkName)
+    val dashboardCardContent: @Composable (DashboardCardType) -> Unit = { card ->
+        DashboardCardContent(
+            card = card,
+            editMode = isEditingCards,
+            status = status,
+            homepage = homepage,
+            stats = stats,
+            plan = plan,
+            signalText = signalText,
+            signalColor = signalColor,
+            batteryPercent = batteryPercent,
+            batteryColor = batteryColor,
+            animatedBattery = animatedBattery,
+            animatedSignal = animatedSignal,
+            carrierName = carrierName,
+            carrierLogo = carrierLogo,
+            bandSummary = state.bandSummary,
+            localUptimeSeconds = state.localUptimeSeconds,
+            cellularConnecting = state.cellularConnecting,
+            routerReachable = state.routerReachable,
+            lastReachableAtLeastOnce = state.lastReachableAtLeastOnce,
+            showPlanHint = showPlanHint,
+            onOpenPlan = {
+                showPlanHint = false
+                showPlanDetail = true
+            },
+            onToggleCellular = viewModel::toggleCellular
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Column(
+        Box(
             modifier = Modifier
                 .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = homepage.decodedSsid().ifEmpty { homepage.deviceName.ifEmpty { "MiFi" } },
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.SemiBold
+                .onGloballyPositioned { coordinates ->
+                    val position = coordinates.localToWindow(Offset.Zero)
+                    dashboardScrollViewportBounds = Rect(
+                        offset = position,
+                        size = Size(
+                            width = coordinates.size.width.toFloat(),
+                            height = coordinates.size.height.toFloat()
+                        )
                     )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(dashboardScrollState)
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "$carrierName · ${status.networkType()}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = homepage.decodedSsid().ifEmpty { homepage.deviceName.ifEmpty { "MiFi" } },
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.SemiBold
                         )
-                        StatusChip(
-                            text = connectionChipText,
-                            color = animatedChipColor,
-                            containerColor = animatedChipContainer
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "$carrierName · ${status.networkType()}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            StatusChip(
+                                text = connectionChipText,
+                                color = animatedChipColor,
+                                containerColor = animatedChipContainer
+                            )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (isEditingCards) {
+                            IconButton(onClick = { showAddCards = true }) {
+                                Icon(Icons.Default.Add, contentDescription = "添加首页卡片")
+                            }
+                            IconButton(onClick = viewModel::resetDashboardCards) {
+                                Icon(Icons.Default.RestartAlt, contentDescription = "恢复默认首页卡片")
+                            }
+                        }
+                        IconButton(onClick = { isEditingCards = !isEditingCards }) {
+                            Icon(
+                                imageVector = if (isEditingCards) Icons.Default.Save else Icons.Default.Edit,
+                                contentDescription = if (isEditingCards) "完成编辑" else "编辑首页卡片"
+                            )
+                        }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (isEditingCards) {
-                        IconButton(onClick = { showAddCards = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "添加首页卡片")
-                        }
-                        IconButton(onClick = viewModel::resetDashboardCards) {
-                            Icon(Icons.Default.RestartAlt, contentDescription = "恢复默认首页卡片")
-                        }
-                    }
-                    IconButton(onClick = { isEditingCards = !isEditingCards }) {
-                        Icon(
-                            imageVector = if (isEditingCards) Icons.Default.Save else Icons.Default.Edit,
-                            contentDescription = if (isEditingCards) "完成编辑" else "编辑首页卡片"
-                        )
-                    }
-                }
+
+                DashboardCardsList(
+                    cards = state.dashboardCards,
+                    editMode = isEditingCards,
+                    hasPlan = plan != null,
+                    scrollState = dashboardScrollState,
+                    scrollViewportBounds = dashboardScrollViewportBounds,
+                    onDragOverlayChange = { dashboardDragOverlay = it },
+                    onReorder = viewModel::saveDashboardCardOrder,
+                    onRemove = viewModel::removeDashboardCard,
+                    content = dashboardCardContent
+                )
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
-            DashboardCardsList(
-                cards = state.dashboardCards,
-                editMode = isEditingCards,
-                hasPlan = plan != null,
-                onReorder = viewModel::saveDashboardCardOrder,
-                onRemove = viewModel::removeDashboardCard
-            ) { card ->
-                DashboardCardContent(
-                    card = card,
-                    editMode = isEditingCards,
-                    status = status,
-                    homepage = homepage,
-                    stats = stats,
-                    plan = plan,
-                    signalText = signalText,
-                    signalColor = signalColor,
-                    batteryPercent = batteryPercent,
-                    batteryColor = batteryColor,
-                    animatedBattery = animatedBattery,
-                    animatedSignal = animatedSignal,
-                    carrierName = carrierName,
-                    carrierLogo = carrierLogo,
-                    bandSummary = state.bandSummary,
-                    localUptimeSeconds = state.localUptimeSeconds,
-                    cellularConnecting = state.cellularConnecting,
-                    routerReachable = state.routerReachable,
-                    lastReachableAtLeastOnce = state.lastReachableAtLeastOnce,
-                    showPlanHint = showPlanHint,
-                    onOpenPlan = {
-                        showPlanHint = false
-                        showPlanDetail = true
-                    },
-                    onToggleCellular = viewModel::toggleCellular
-                )
+            val overlay = dashboardDragOverlay
+            val viewportBounds = dashboardScrollViewportBounds
+            if (overlay != null && viewportBounds != null) {
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .fillMaxWidth()
+                        .offset {
+                            IntOffset(
+                                x = 0,
+                                y = (overlay.pointerWindowY - overlay.grabOffsetY - viewportBounds.top).roundToInt()
+                            )
+                        }
+                        .zIndex(10f)
+                        .graphicsLayer {
+                            scaleX = 1.015f
+                            scaleY = 1.015f
+                            alpha = 0.98f
+                        }
+                ) {
+                    dashboardCardContent(overlay.card)
+                }
             }
-            Spacer(modifier = Modifier.height(12.dp))
         }
         SnackbarHost(
             hostState = snackbarHostState,
@@ -359,11 +414,16 @@ private fun DashboardCardsList(
     cards: List<DashboardCardType>,
     editMode: Boolean,
     hasPlan: Boolean,
+    scrollState: ScrollState,
+    scrollViewportBounds: Rect?,
+    onDragOverlayChange: (DashboardDragOverlay?) -> Unit,
     onReorder: (List<DashboardCardType>) -> Unit,
     onRemove: (DashboardCardType) -> Unit,
     content: @Composable (DashboardCardType) -> Unit
 ) {
     val cardSpacing = 12.dp
+    val autoScrollEdge = 120.dp
+    val autoScrollMaxStep = 32.dp
     var previewOrder by remember { mutableStateOf(cards) }
     var lastDragOrder by remember { mutableStateOf(cards) }
     var draggedCard by remember { mutableStateOf<DashboardCardType?>(null) }
@@ -373,12 +433,12 @@ private fun DashboardCardsList(
     var draggedBounds by remember { mutableStateOf<Rect?>(null) }
     var dragBaseOrder by remember { mutableStateOf<List<DashboardCardType>>(emptyList()) }
     var dragBaseBounds by remember { mutableStateOf<Map<DashboardCardType, Rect>>(emptyMap()) }
-    var containerTopY by remember { mutableStateOf(0f) }
 
     LaunchedEffect(cards, editMode) {
         if (!editMode || draggedCard == null) {
             previewOrder = cards
             lastDragOrder = cards
+            onDragOverlayChange(null)
         }
     }
 
@@ -389,9 +449,13 @@ private fun DashboardCardsList(
     }
     val latestDisplayCards by rememberUpdatedState(displayCards)
     val latestPreviewOrder by rememberUpdatedState(previewOrder)
+    val latestDragPointerY by rememberUpdatedState(dragPointerY)
+    val latestScrollViewportBounds by rememberUpdatedState(scrollViewportBounds)
     val itemBounds = remember { mutableStateMapOf<DashboardCardType, Rect>() }
     val density = LocalDensity.current
     val spacingPx = with(density) { cardSpacing.toPx() }
+    val autoScrollEdgePx = with(density) { autoScrollEdge.toPx() }
+    val autoScrollMaxStepPx = with(density) { autoScrollMaxStep.toPx() }
     val activeBounds = if (draggedCard != null && dragBaseBounds.isNotEmpty()) {
         dragBaseBounds
     } else {
@@ -409,13 +473,60 @@ private fun DashboardCardsList(
             calculateDashboardSlotTops(previewOrder, activeOrder, activeBounds, spacingPx)
         }
     }
+    fun updatePreviewOrderForDrag(card: DashboardCardType, pointerWindowY: Float) {
+        val viewportBounds = latestScrollViewportBounds ?: return
+        val draggedHeight = draggedBounds?.height ?: dragBaseBounds[card]?.height ?: return
+        val centerContentY = pointerWindowY -
+            viewportBounds.top +
+            scrollState.value +
+            (draggedHeight / 2f - dragGrabOffsetY)
+        val baseOrder = dragBaseOrder.ifEmpty { latestDisplayCards }
+        val baseBounds = dragBaseBounds.ifEmpty { itemBounds.toMap() }
+        val nextOrder = calculateDashboardDragOrder(
+            baseOrder = baseOrder,
+            bounds = baseBounds,
+            draggedCard = card,
+            dragCenterY = centerContentY,
+            spacingPx = spacingPx
+        )
+        dragCenterY = centerContentY
+        if (nextOrder != latestPreviewOrder) {
+            previewOrder = nextOrder
+            lastDragOrder = nextOrder
+        }
+    }
+
+    LaunchedEffect(draggedCard, editMode) {
+        while (editMode && draggedCard != null) {
+            val pointerY = latestDragPointerY
+            val viewportBounds = latestScrollViewportBounds
+            val scrollDelta = if (pointerY != null && viewportBounds != null) {
+                calculateDashboardAutoScrollDelta(
+                    pointerY = pointerY,
+                    viewportBounds = viewportBounds,
+                    edgePx = autoScrollEdgePx,
+                    maxStepPx = autoScrollMaxStepPx
+                )
+            } else {
+                0f
+            }
+            val consumedScroll = if (scrollDelta != 0f) {
+                scrollState.dispatchRawDelta(scrollDelta)
+            } else {
+                0f
+            }
+            if (consumedScroll != 0f) {
+                val card = draggedCard
+                if (card != null && pointerY != null) {
+                    updatePreviewOrderForDrag(card, pointerY)
+                }
+            }
+            withFrameMillis { }
+        }
+    }
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .onGloballyPositioned { coordinates ->
-                containerTopY = coordinates.localToWindow(Offset.Zero).y
-            }
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(cardSpacing)) {
             displayCards.forEach { card ->
@@ -456,19 +567,39 @@ private fun DashboardCardsList(
                                     Modifier.pointerInput(card, editMode) {
                                         detectDragGesturesAfterLongPress(
                                             onDragStart = { localOffset ->
-                                                val currentBounds = latestDisplayCards.mapNotNull { item ->
+                                                val viewportBounds = latestScrollViewportBounds
+                                                val currentWindowBounds = latestDisplayCards.mapNotNull { item ->
                                                     itemBounds[item]?.let { item to it }
                                                 }.toMap()
-                                                val bounds = currentBounds[card] ?: itemBounds[card]
+                                                val bounds = currentWindowBounds[card] ?: itemBounds[card]
+                                                val contentBounds = if (viewportBounds != null) {
+                                                    currentWindowBounds.mapValues { (_, rect) ->
+                                                        rect.toDashboardContentRect(
+                                                            viewportTop = viewportBounds.top,
+                                                            scrollValue = scrollState.value
+                                                        )
+                                                    }
+                                                } else {
+                                                    currentWindowBounds
+                                                }
                                                 dragBaseOrder = latestDisplayCards
-                                                dragBaseBounds = currentBounds
+                                                dragBaseBounds = contentBounds
                                                 previewOrder = latestDisplayCards
                                                 lastDragOrder = latestDisplayCards
                                                 draggedCard = card
                                                 draggedBounds = bounds
                                                 dragGrabOffsetY = localOffset.y
                                                 dragPointerY = bounds?.let { it.top + localOffset.y }
-                                                dragCenterY = bounds?.center?.y
+                                                dragPointerY?.let { pointerY ->
+                                                    onDragOverlayChange(
+                                                        DashboardDragOverlay(
+                                                            card = card,
+                                                            pointerWindowY = pointerY,
+                                                            grabOffsetY = localOffset.y
+                                                        )
+                                                    )
+                                                    updatePreviewOrderForDrag(card, pointerY)
+                                                }
                                             },
                                             onDrag = { change, dragAmount ->
                                                 change.consume()
@@ -476,28 +607,20 @@ private fun DashboardCardsList(
                                                     ?: return@detectDragGesturesAfterLongPress
                                                 val nextPointerY = currentPointerY + dragAmount.y
                                                 dragPointerY = nextPointerY
-                                                val currentBounds = draggedBounds ?: itemBounds[card]
-                                                    ?: return@detectDragGesturesAfterLongPress
-                                                val nextCenterY = nextPointerY + (currentBounds.height / 2f - dragGrabOffsetY)
-                                                dragCenterY = nextCenterY
-                                                val baseOrder = dragBaseOrder.ifEmpty { latestDisplayCards }
-                                                val baseBounds = dragBaseBounds.ifEmpty { itemBounds.toMap() }
-                                                val nextOrder = calculateDashboardDragOrder(
-                                                    baseOrder = baseOrder,
-                                                    bounds = baseBounds,
-                                                    draggedCard = card,
-                                                    dragCenterY = nextCenterY,
-                                                    spacingPx = spacingPx
+                                                onDragOverlayChange(
+                                                    DashboardDragOverlay(
+                                                        card = card,
+                                                        pointerWindowY = nextPointerY,
+                                                        grabOffsetY = dragGrabOffsetY
+                                                    )
                                                 )
-                                                if (nextOrder != latestPreviewOrder) {
-                                                    previewOrder = nextOrder
-                                                    lastDragOrder = nextOrder
-                                                }
+                                                updatePreviewOrderForDrag(card, nextPointerY)
                                             },
                                             onDragEnd = {
                                                 val finalOrder = lastDragOrder
                                                 previewOrder = finalOrder
                                                 onReorder(finalOrder)
+                                                onDragOverlayChange(null)
                                                 draggedCard = null
                                                 dragCenterY = null
                                                 dragPointerY = null
@@ -508,6 +631,7 @@ private fun DashboardCardsList(
                                             onDragCancel = {
                                                 previewOrder = cards
                                                 lastDragOrder = cards
+                                                onDragOverlayChange(null)
                                                 draggedCard = null
                                                 dragCenterY = null
                                                 dragPointerY = null
@@ -578,30 +702,34 @@ private fun DashboardCardsList(
                 }
             }
         }
+    }
+}
 
-        val popupCard = draggedCard
-        val popupBounds = draggedBounds
-        val popupPointerY = dragPointerY
-        if (popupCard != null && popupBounds != null && popupPointerY != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .offset {
-                        IntOffset(
-                            x = 0,
-                            y = (popupPointerY - dragGrabOffsetY - containerTopY).roundToInt()
-                        )
-                    }
-                    .zIndex(2f)
-                    .graphicsLayer {
-                        scaleX = 1.015f
-                        scaleY = 1.015f
-                        alpha = 0.98f
-                    }
-            ) {
-                content(popupCard)
-            }
+private fun Rect.toDashboardContentRect(viewportTop: Float, scrollValue: Int): Rect {
+    return Rect(
+        offset = Offset(left, top - viewportTop + scrollValue),
+        size = size
+    )
+}
+
+private fun calculateDashboardAutoScrollDelta(
+    pointerY: Float,
+    viewportBounds: Rect,
+    edgePx: Float,
+    maxStepPx: Float
+): Float {
+    val topEdge = viewportBounds.top + edgePx
+    val bottomEdge = viewportBounds.bottom - edgePx
+    return when {
+        pointerY < topEdge -> {
+            val intensity = ((topEdge - pointerY) / edgePx).coerceIn(0f, 1f)
+            -maxStepPx * intensity
         }
+        pointerY > bottomEdge -> {
+            val intensity = ((pointerY - bottomEdge) / edgePx).coerceIn(0f, 1f)
+            maxStepPx * intensity
+        }
+        else -> 0f
     }
 }
 
